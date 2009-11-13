@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="de" lang="de" dir="ltr">
+<head>
+<title>Evopedia Map</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="/static/main.css"/>
+<script type="text/javascript" src="/static/mapclient.js"></script>
+</head>
+<body class="mediawiki ns-0 ltr page-Actinium">
+<div id="globalWrapper">
+<div style="text-align: center;">
+<a class="evopedianav" href="/static/search.html" id="searchlink"><img src="/static/search.png"></a>
+<a class="evopedianav" href="/random" id="randomlink"><img src="/static/random.png"></a>
+<img id="gpspos" src="/static/home.png">
+<img id="zoomin" src="/static/zoomin.png">
+<img id="zoomout" src="/static/zoomout.png">
+<!--click action:
+<select id="click_action">
+<option selected="selected">link</option>
+<option>zoom to</option>
+<option>move</option>
+</select>
+tile repo:-->
+<select id="tile_repo">
+<option>default</option>
+</select>
+</div>
+<div id="mapContainer" style="position: relative; top: 0px; left: 0px; overflow: hidden;">
+<div id="tileContainer" style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></div>
+<div id="articleContainer" style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;"></div>
+<img id="crosshairs" src="/static/crosshairs.png" style="position: absolute; display: none;">
+<span id="errortext" style="position: absolute; left: 0px; top: 0px; width: 100%; height: 15px; background: white; display: none;"></span>
+<div id="infodiv" style="position: absolute; left: 0px; top: 0px; display: none; width: 100%; background: white; padding: 5px;">
+<img id="infodivclose" src="/static/close.png" style="float: right;">
+<span id="infodivinterior"></span>
+</div>
+</div>
+<span id="jswarning">Please activate Javascript!</span>
