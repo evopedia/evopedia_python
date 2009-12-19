@@ -1,0 +1,9 @@
+Package: evopedia
+Version: 0.2.3-r2
+Description: Offline Wikipedia Viewer
+Section: extra
+Priority: optional
+Maintainer: Christian Reitwiessner <christian@reitwiessner.de>
+Architecture: armel
+Depends: python
+Source: http://www.reitwiessner.de/openmoko/evopedia.html

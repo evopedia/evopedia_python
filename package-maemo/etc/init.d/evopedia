@@ -1,0 +1,73 @@
+#! /bin/sh
+#
+# evopedia -- This shell script starts and stops the evopedia wikipedia http
+# server
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+NAME=evopedia
+
+[ -f /etc/default/rcS ] && . /etc/default/rcS
+
+WIKIPEDIA_IMAGE="/home/user/MyDocs/wikipedia.squashfs"
+HTTP_PORT="8080"
+[ -f /etc/evopedia.conf ] && . /etc/evopedia.conf
+
+# extract tangoGPS tile repository from configuration file
+# gconf can only be used after X11 session start
+#TILEREPOS=`sed -n -e '/<entry[^>]* name="repos"/,/<\/entry>/{ /<stringvalue>/ { s/.*<stringvalue>\([^<]*\)<\/stringvalue>.*/\1/p } }' < /home/root/.gconf/apps/tangogps/%gconf.xml | sed -e 's/\n/,/g'`
+
+
+# the next line is needed so that python interprets filenames as utf-8
+export LC_ALL=en_US.UTF-8
+
+case "$1" in
+    start)
+        modprobe loop 2>/dev/null
+        modprobe squashfs 2>/dev/null
+
+        echo -n "Mounting Wikipedia data image: "
+	if grep ' /usr/lib/evopedia/articles ' /etc/mtab > /dev/null
+	then
+		echo "already mounted (ok)"
+	else
+	        mount "$WIKIPEDIA_IMAGE" /usr/lib/evopedia/articles -o loop -t squashfs
+	        if [ $? = 0 ]; then
+        	    echo "(ok)"
+		else
+		    echo "(failed)"
+		    echo "PLEASE DOWNLOAD SOME WIKIPEDIA DATA IMAGE AND SET ITS LOCATION IN"
+		    echo "/etc/evopedia.conf"
+                    echo "Do you have loop and squashfs drivers installed?"
+	 	    exit 1
+		fi
+	fi
+        echo -n "Starting evopedia server: "
+        start-stop-daemon -p /var/run/${NAME}.pid -m -c nobody -b -x /usr/bin/python -S -- /usr/bin/evopedia.py "$HTTP_PORT" "$TILEREPOS"
+
+        if [ $? = 0 ]; then
+             echo "(ok)"
+        else
+             echo "(failed)"
+        fi
+
+        ;;
+    stop)
+        echo -n "Stopping evopedia server: "
+        start-stop-daemon -p /var/run/${NAME}.pid -K
+        rm -f /var/run/${NAME}.pid
+        echo "(done)"
+	echo "Unmounting Wikipedia data image."
+        umount /usr/lib/evopedia/articles 2>/dev/null
+
+        ;;
+    restart|force-reload)
+        $0 stop
+        $0 start
+        ;;
+    *)
+        echo "Usage: /etc/init.d/evopedia {start|stop|restart|force-reload}"
+        exit 1
+        ;;
+esac
+
+exit 0
