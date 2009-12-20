@@ -251,7 +251,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         query = self.normalize(query)
         text = ''
-        exceptions = set(['evopedia_version', 'creation_date'])
+        exceptions = set(['evopedia_version', 'creation_date', 'index.html', 'coords'])
 
         results = 0
         path = (u'/' + u'/'.join(query[:search_depth])).encode('utf-8')
@@ -522,7 +522,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         elif parts[0] == 'search':
             try:
                 query = self.decode(dict['q'][0])
-            except (UnicodeDecodeError, TypeError):
+            except (UnicodeDecodeError, TypeError, KeyError):
                 query = ''
             self.output_search_result(query, 50)
             return

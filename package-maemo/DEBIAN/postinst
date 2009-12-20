@@ -1,10 +1,5 @@
 #!/bin/sh
 
-if [ -x /etc/init.d/evopedia ]
-then
-    update-rc.d $OPT evopedia defaults > /dev/null
-    [ -x /etc/init.d/evopedia ] && /etc/init.d/evopedia start
-    #[ -x /sbin/start ] && /sbin/start --quiet evopedia
-fi
+/sbin/start --quiet evopedia
 
 exit 0

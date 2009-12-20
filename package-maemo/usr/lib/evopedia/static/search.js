@@ -54,7 +54,7 @@ ArticleSearch.prototype = {
         //if (this.input.value.length < 3) return;
 
         var lthis = this;
-        this.searchTimeout = window.setTimeout(function() { lthis.doSearch();}, 1200);
+        this.searchTimeout = window.setTimeout(function() { lthis.doSearch();}, 300);
     },
 
     doSearch: function() {

@@ -48,6 +48,10 @@ try:
 except ImportError:
     dbus = None
 
+try:
+    math.atanh(0)
+except AttributeError:
+    math.atanh = lambda x: .5 * (math.log(1 + x) - math.log(1 - x))
 
 endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
 
@@ -247,7 +251,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         query = self.normalize(query)
         text = ''
-        exceptions = set(['evopedia_version', 'creation_date'])
+        exceptions = set(['evopedia_version', 'creation_date', 'index.html', 'coords'])
 
         results = 0
         path = (u'/' + u'/'.join(query[:search_depth])).encode('utf-8')
@@ -518,19 +522,19 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         elif parts[0] == 'search':
             try:
                 query = self.decode(dict['q'][0])
-            except UnicodeDecodeError:
+            except (UnicodeDecodeError, TypeError, KeyError):
                 query = ''
             self.output_search_result(query, 50)
             return
         elif parts[0] == 'map':
             try:
                 coords = (float(dict['lat'][0]), float(dict['lon'][0]))
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 coords = (50, 10)
 
             try:
                 zoom = int(dict['zoom'][0])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 zoom = 3
 
             self.output_map(coords, zoom)
@@ -560,7 +564,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 maxx = int(dict['maxx'][0])
                 maxy = int(dict['maxy'][0])
                 zoom = int(dict['zoom'][0])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 self.output_error_msg_page('Invalid URL')
                 return
             self.output_geo_articles(zoom, minx, miny, maxx, maxy)
@@ -568,7 +572,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         elif parts[0] == 'gpspos':
             try:
                 zoom = int(dict['zoom'][0])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 self.output_error_msg_page('Invalid URL')
                 return
 

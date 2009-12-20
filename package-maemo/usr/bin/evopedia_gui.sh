@@ -6,4 +6,4 @@ BROWSER="/usr/bin/browser --full-screen --url="
 
 #/etc/init.d/evopedia start
 
-"$BROWSER""http://127.0.0.1:$HTTP_PORT"
+$BROWSER"http://127.0.0.1:$HTTP_PORT"

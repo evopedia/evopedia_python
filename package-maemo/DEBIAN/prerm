@@ -1,3 +1,5 @@
 #!/bin/sh
 
-[ -x /etc/init.d/evopedia ] && /etc/init.d/evopedia stop
+/sbin/stop --quiet evopedia
+
+exit 0

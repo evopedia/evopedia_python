@@ -1,0 +1,29 @@
+description "evopedia"
+author "Christian Reitwiessner <christian@reitwiessner.de>"
+
+start on started hildon-desktop
+stop on starting shutdown
+
+pre-start script
+    modprobe squashfs
+end script
+
+post-stop script
+    umount /usr/lib/evopedia/articles
+end script
+
+script
+    WIKIPEDIA_IMAGE="/media/card/wikipedia.squashfs"
+    HTTP_PORT="8080"
+    [ -f /etc/evopedia.conf ] && . /etc/evopedia.conf
+
+    for i in 1 2 3 4 5 6; do
+        mount "$WIKIPEDIA_IMAGE" /usr/lib/evopedia/articles -o loop -t squashfs && break
+        sleep 10
+    done &
+
+    /usr/bin/evopedia.py "$HTTP_PORT"
+end script
+
+respawn
+service

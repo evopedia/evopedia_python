@@ -1,5 +1,0 @@
-#!/bin/sh
-
-update-rc.d evopedia remove >/dev/null
-
-exit 0
