@@ -33,15 +33,26 @@ function getNodeContent(node) {
     return value;
 }
 
+function initialSearchValue() {
+    getVariables = window.location.href.split('=');
+    
+    if (getVariables.length <= 1)
+        return '';
+
+    return getVariables[getVariables.length-1];
+}
 
 function ArticleSearch() {
     var lthis = this;
     this.input = document.getElementById('searchInput');
+    this.input.value = initialSearchValue();
     this.input.onkeyup = function(e) { return lthis.inputKeyUp(e || window.event); }
     this.input.focus();
     this.searchList = document.getElementById('searchList');
 
     this.searchTimeout = null;
+    if (this.input.value != '')
+        this.doSearch();
 }
 
 ArticleSearch.prototype = {
