@@ -37,6 +37,7 @@ import time
 import threading
 from random import randint, choice
 import urllib2
+import os
 
 # do not put slashes at the end here!
 config = {'storage': 'datafile',
@@ -523,8 +524,10 @@ class TileRepo(object):
         if self.tilepath is not None:
             if self.get_local_tile(request_handler, x, y, zoom):
                 return
+            self.download_remote_tile(request_handler, x, y, zoom)
+            self.get_local_tile(request_handler, x, y, zoom)
 
-        self.redirect_to_remote_tile(request_handler, x, y, zoom)
+        #self.redirect_to_remote_tile(request_handler, x, y, zoom)
         #self.send_remote_tile(request_handler, x, y, zoom)
 
     def get_local_tile(self, request_handler, x, y, zoom):
@@ -557,6 +560,21 @@ class TileRepo(object):
                 return self.tileurl % (x, y, zoom)
             else:
                 return self.tileurl % (zoom, x, y)
+
+    def download_remote_tile(self, request_handler, x, y, zoom):
+        url = self.get_remote_tile_url(x, y, zoom)
+        print("Fetchind %s..." % url)
+        f = urllib2.urlopen(url)
+        content = f.read()
+
+        tiledir = self.tilepath + '/%d/%d/' % (zoom, x)
+        try:
+            os.makedirs(tiledir)
+        except Exception:
+            """looks like if dir already exists"""
+
+        tilefile = self.tilepath + '/%d/%d/%d.png' % (zoom, x, y)
+        open(tilefile, 'w').write(content)
 
     def redirect_to_remote_tile(self, request_handler, x, y, zoom):
         request_handler.send_response(301)
