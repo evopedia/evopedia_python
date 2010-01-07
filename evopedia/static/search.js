@@ -33,26 +33,16 @@ function getNodeContent(node) {
     return value;
 }
 
-function initialSearchValue() {
-    getVariables = window.location.href.split('=');
-    
-    if (getVariables.length <= 1)
-        return '';
-
-    return getVariables[getVariables.length-1];
-}
-
 function ArticleSearch() {
     var lthis = this;
     this.input = document.getElementById('searchInput');
-    this.input.value = initialSearchValue();
+    this.setInitialSearchValueFromURL();
     this.input.onkeyup = function(e) { return lthis.inputKeyUp(e || window.event); }
     this.input.focus();
     this.searchList = document.getElementById('searchList');
 
     this.searchTimeout = null;
-    if (this.input.value != '')
-        this.doSearch();
+    this.doSearch();
 }
 
 ArticleSearch.prototype = {
@@ -65,7 +55,18 @@ ArticleSearch.prototype = {
         //if (this.input.value.length < 3) return;
 
         var lthis = this;
-        this.searchTimeout = window.setTimeout(function() { lthis.doSearch();}, 1200);
+        this.searchTimeout = window.setTimeout(function() { lthis.doSearch();}, 300);
+    },
+
+    setInitialSearchValueFromURL: function() {
+        var query = window.location.search;
+        var queries = query.split('=');
+        if (queries.length > 1) {
+            query = queries[queries.length - 1];
+        } else {
+            query = query.substring(1);
+        }
+        this.input.value = query;
     },
 
     doSearch: function() {
