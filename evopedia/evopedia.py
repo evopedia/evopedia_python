@@ -24,7 +24,6 @@ from __future__ import division
 
 import cgi
 import shutil
-from os import path, listdir, walk, readlink
 import SocketServer
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urllib import unquote_plus, unquote, quote, pathname2url
@@ -70,7 +69,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.output_error_page()
         else:
             self.write_header(use_cache=1)
-            with open(path.join(config['static_path'], 'header.html')) as head:
+            with open(os.path.join(config['static_path'], 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
             (lat, lon) = self.get_coords_in_article(text)
             if lat is not None and lon is not None:
@@ -83,27 +82,27 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     storage.get_orig_url(url))
             self.wfile.write('</div>')
             self.wfile.write(text)
-            with open(path.join(config['static_path'], 'footer.html')) as foot:
+            with open(os.path.join(config['static_path'], 'footer.html')) as foot:
                 shutil.copyfileobj(foot, self.wfile)
 
     def output_error_page(self):
         self.send_response(404)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        with open(path.join(config['static_path'], 'header.html')) as head:
+        with open(os.path.join(config['static_path'], 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write("</div>ERROR - Page not found")
-        with open(path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_error_msg_page(self, msg):
         self.send_response(404)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        with open(path.join(config['static_path'], 'header.html')) as head:
+        with open(os.path.join(config['static_path'], 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write((u"</div>ERROR: %s" % msg).encode('utf-8'))
-        with open(path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_search_result(self, query, limit):
@@ -115,10 +114,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         except Exception, e:
             self.wfile.write(('<error>%s</error>' %
                               saxutils.escape(repr(e))).encode('utf-8'))
-
-    # XXX check if used
-    def get_article_name_from_filename(self, filename):
-        return endpattern.sub('', filename).replace('_', ' ')
 
     def get_search_result_text(self, query, limit):
         global storage
@@ -187,7 +182,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         self.write_header()
 
-        with open(path.join(config['static_path'], 'mapheader.html')) as head:
+        with open(os.path.join(config['static_path'], 'mapheader.html')) as head:
             shutil.copyfileobj(head, self.wfile)
 
         global tangogps_tilerepos
@@ -202,7 +197,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(text.encode('utf-8'))
 
-        with open(path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_geo_articles(self, zoom, minx, miny, maxx, maxy):
@@ -257,6 +252,54 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         lon = int(path[0]) * 10 + int(path[2])
         lat = int(path[1]) * 10 + int(path[3])
 
+    def output_data_selector(self, parts, dict):
+        self.write_header()
+
+        global config
+        global storage
+        global storage_class
+
+        path = config['data_dir']
+        try:
+            path = self.decode(dict['path'][0])
+        except (UnicodeDecodeError, TypeError, KeyError):
+            pass
+        path = os.path.abspath(path)
+
+        with open(os.path.join(config['static_path'], 'header.html')) as head:
+            shutil.copyfileobj(head, self.wfile)
+        self.wfile.write('</div>')
+        self.wfile.write('<h2>Please choose data directory</h2>')
+        self.wfile.write('<h3>%s</h3>' % saxutils.escape(path))
+
+        (date, language) = (None, None)
+        try:
+            (date, language) = storage_class.get_metadata(path)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+        if date is not None:
+            self.wfile.write(('<a href=/set_data?path=%s>' +
+                    'Use this Wikipedia dump from %s, language: %s</a>') %
+                    (quote(path), date, language))
+
+        self.wfile.write('<ul>')
+        for f in ['..'] + sorted([d for d in os.listdir(path)
+                                        if not d.startswith('.')]):
+            dir = os.path.join(path, f)
+            if not os.path.isdir(dir):
+                continue
+            quotedpath = quote(dir)
+            quotedname = saxutils.escape(f.encode('utf-8'))
+            text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
+                                        quotedpath, quotedname)
+            self.wfile.write(text)
+
+        self.wfile.write('</ul>')
+        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+            shutil.copyfileobj(foot, self.wfile)
+
     def write_header(self, content_type='text/html', use_cache=0):
         self.send_response(200)
         if use_cache:
@@ -279,6 +322,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         global config
+        global storage
 
         dict = None
         i = self.path.rfind('?')
@@ -289,6 +333,14 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         parts = [self.decode(unquote(i)) for i in self.path.split('/') if i]
 
+        if storage is None and len(parts) >= 1 and parts[0] != 'choose_data':
+            # XXX only redirect for main pages and for parts that really
+            # need the data
+            self.send_response(302)
+            self.send_header('Location', '/choose_data')
+            self.end_headers()
+            return
+
         if len(parts) == 0:
             # XXX Compare file dates (could be time-consuming), use
             # headers.getdate('If...')
@@ -297,9 +349,15 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             self.write_header(use_cache=1)
-            with open(path.join(config['static_path'],
+            with open(os.path.join(config['static_path'],
                                 'search.html')) as search:
-                shutil.copyfileobj(search, self.wfile)
+                data = search.read()
+                data = data.replace("EVOPEDIA_INFO",
+                            ('<a href="%s">Wikipedia</a>, ' +
+                                    '<a href="/choose_data">%s (%s)</a>') %
+                            (storage.get_orig_url(''),
+                                 storage.get_date(), storage.get_language()))
+                self.wfile.write(data)
             return
         elif parts[0] == 'static':
             # XXX Compare file dates (could be time-consuming)
@@ -308,7 +366,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
-                    'search.html', 'mapclient.js', 'map.js', 'zoomin.png',
+                    'mapclient.js', 'map.js', 'zoomin.png',
                     'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
                     'crosshairs.png']):
@@ -320,7 +378,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     self.write_header('application/javascript', use_cache=1)
                 else:
                     self.write_header(use_cache=1)
-                with open(path.join(config['static_path'], parts[1])) as fobj:
+                with open(os.path.join(config['static_path'], parts[1])) as fobj:
                     shutil.copyfileobj(fobj, self.wfile)
                 return
         elif parts[0] == 'search':
@@ -404,6 +462,26 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.end_headers()
             else:
                 self.output_error_msg_page("Error finding random page...")
+            return
+        elif parts[0] == 'choose_data':
+            self.output_data_selector(parts, dict)
+            return
+        elif parts[0] == 'set_data':
+            # XXX also save setting
+            data_dir = dict['path'][0]
+            print "Changing datafile storage to %s." % data_dir
+
+            global storage_class
+            from datafile_storage import DatafileStorage
+            storage_class = DatafileStorage
+            storage = DatafileStorage()
+            storage.storage_init_read(data_dir + '/titles.idx',
+                                      data_dir + '/coordinates.idx',
+                                      data_dir + '/wikipedia_%02d.dat',
+                                      data_dir + '/metadata.txt')
+            self.send_response(302)
+            self.send_header('Location', '/')
+            self.end_headers()
             return
         elif parts[0] in ('wiki', 'articles'):
             if 'If-Modified-Since' in self.headers:
@@ -639,10 +717,15 @@ def main():
                 % sys.argv[0])
         sys.exit(1)
 
+    global config
+
+    # XXX put this in user config
     data_dir = sys.argv[1]
     if not os.path.exists(data_dir):
         print("Data directory %s not found." % data_dir)
         sys.exit(1)
+
+    config['data_dir'] = data_dir
 
     port = (int(sys.argv[2]) if len(sys.argv) >= 3 else 8080)
     repostring = (sys.argv[3] if len(sys.argv) >= 4 else '')
@@ -656,9 +739,11 @@ def main():
     gps_handler = GPSHandler()
 
     global storage
+    global storage_class
     if config['storage'] == 'datafile':
         print "Using datafile storage."
         from datafile_storage import DatafileStorage
+        storage_class = DatafileStorage
         storage = DatafileStorage()
         storage.storage_init_read(data_dir + '/titles.idx',
                                   data_dir + '/coordinates.idx',

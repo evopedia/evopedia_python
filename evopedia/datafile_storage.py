@@ -155,6 +155,16 @@ class DatafileStorage(object):
                                 mincoords, maxcoords,
                                 -91.0, 91.0, -181.0, 181.0):
                     yield item
+
+    @staticmethod
+    def get_metadata(dir):
+        metadata_file = os.path.join(dir, 'metadata.txt')
+        if not os.path.exists(metadata_file):
+            return (None, None)
+        parser = ConfigParser.RawConfigParser()
+        parser.read(metadata_file)
+        return (parser.get('dump', 'date'), parser.get('dump', 'language'))
+        
     # --- end of storage interface ---
 
     def titles_in_coords_int(self, coordf, filepos, titlesf,
