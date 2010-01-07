@@ -634,7 +634,6 @@ def main():
         print "Using datafile storage."
         from datafile_storage import DatafileStorage
         storage = DatafileStorage(data_dir + '/titles.idx',
-                                  data_dir + '/prefixes.idx',
                                   data_dir + '/coordinates.idx',
                                   data_dir + '/wikipedia_%02d.dat')
     else:
