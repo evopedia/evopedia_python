@@ -77,6 +77,9 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                         'href="/map/?lat=%f&lon=%f&zoom=13">' +
                         '<img src="/static/maparticle.png"></a>') %
                                  (lat, lon))
+            self.wfile.write(('<a class="evopedianav" href="%s">' +
+                    '<img src="/static/wikipedia.png"></a>') %
+                    storage.get_orig_url(url))
             self.wfile.write('</div>')
             self.wfile.write(text)
             with open(path.join(config['static_path'], 'footer.html')) as foot:
@@ -219,7 +222,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 (x, y) = self.coords2pixel(zoom, (lat, lon))
                 self.wfile.write(((u'<article name="%s" x="%d" y="%d" ' +
                                    u'href="%s"/>') %
-                                   (saxutils.escape(name), x, y,
+                                   (saxutils.escape(name.encode('utf-8')), x, y,
                                     quote(url))).encode('utf-8'))
                 articlecount += 1
                 if articlecount > 100:
@@ -633,9 +636,11 @@ def main():
     if config['storage'] == 'datafile':
         print "Using datafile storage."
         from datafile_storage import DatafileStorage
-        storage = DatafileStorage(data_dir + '/titles.idx',
+        storage = DatafileStorage()
+        storage.storage_init_read(data_dir + '/titles.idx',
                                   data_dir + '/coordinates.idx',
-                                  data_dir + '/wikipedia_%02d.dat')
+                                  data_dir + '/wikipedia_%02d.dat',
+                                  data_dir + '/metadata.txt')
     else:
         print "Unknown storage %s." % (config['storage'])
         sys.exit(1)

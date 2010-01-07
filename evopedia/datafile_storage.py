@@ -10,37 +10,69 @@ import operator
 import itertools
 import bz2
 import random
+import urllib
+import ConfigParser
 
 import evopediautils
 
 __all__ = ["DatafileStorage"] 
 
 class DatafileStorage(object):
-    """Class for reading from and creating compressed wikipedia images."""
-
-    def __init__(self, titles_file, coordinates_file, data_files_schema):
-        """Creates a new DatafileStorage object with relevant files at the
-        given locations.
-
-        Note that data_files_schema is a file schema to be used as
-        data_files_schema % i, where i is an unsigned integer.
-
-        Usual values for the parameters:
-           titles_file = "titles.idx"
-           coordinates_file = "coordinates.idx"
-           data_files_schema = "wikipedia_%02d.dat"
-        """
+    """Class for reading from and creating compressed wikipedia images.
+    
+    storage_init_read or storage_init_create have to be called to really use the
+    Storage."""
 
 
+    def storage_init_read(self, titles_file, coordinates_file,
+                            data_files_schema, metadata_file):
         self.titles_file = titles_file
-        try:
-            self.titles_file_size = os.path.getsize(self.titles_file)
-        except OSError:
-            self.titles_file_size = 0
         self.coordinates_file = coordinates_file
         self.data_files_schema = data_files_schema
 
+        parser = ConfigParser.RawConfigParser()
+        parser.read(metadata_file)
+
+        self.dump_date = parser.get('dump', 'date')
+        self.dump_language = parser.get('dump', 'language')
+        self.dump_orig_url = parser.get('dump', 'orig_url')
+        self.dump_version = parser.get('dump', 'version')
+
+        self.titles_file_size = os.path.getsize(self.titles_file)
+
+    def storage_create(self, image_dir, titles_file, coordinates_file,
+                            data_files_schema, metadata_file,
+                            dump_date, dump_language, dump_orig_url):
+        self.titles_file = titles_file
+        self.coordinates_file = coordinates_file
+        self.data_files_schema = data_files_schema
+        print("Converting image...")
+
+        (articles, redirects) = self.convert_articles(image_dir)
+        title_positions = self.generate_index(articles.items(),
+                                              redirects.items(), 50)
+        self.convert_coordinates(image_dir, 10, title_positions)
+
+        print("Writing metadata file...")
+        config = ConfigParser.RawConfigParser()
+        config.add_section('dump')
+        config.set('dump', 'date', dump_date)
+        config.set('dump', 'language', dump_language)
+        config.set('dump', 'orig_url', dump_orig_url)
+        config.set('dump', 'version', '3.0')
+        with open(metadata_file, 'wb') as md_f:
+            config.write(md_f)
+
     # --- storage interface ---
+    def get_date(self):
+        return self.dump_date
+
+    def get_language(self):
+        return self.dump_language
+
+    def get_orig_url(self, title):
+        return self.dump_orig_url + urllib.quote(title.encode('utf-8'))
+
     def get_article_by_name(self, name):
         """Get the text of an article.
         
@@ -174,12 +206,15 @@ class DatafileStorage(object):
 
     # also handles redirects
     def get_article_by_pos(self, articlepos):
+        print articlepos
         if articlepos[0] == 0xff: # redirect
-            if articlepos[1] == 0xffffff:
+            if articlepos[1] == 0xffffffff:
                 return None
             offset = articlepos[1]
+            print("redir...")
             (title, articlepos) = self.title_at_offset(offset)
 
+        print articlepos
         (filenr, block_start, block_offset, article_len) = articlepos
 
         with open(self.data_files_schema % filenr) as datafile:
@@ -342,14 +377,6 @@ class DatafileStorage(object):
         finally:
             datafile.close()
 
-    def convert_image(self, image_dir):
-        print("Converting image...")
-
-        (articles, redirects) = self.convert_articles(image_dir)
-        title_positions = self.generate_index(articles.items(),
-                                              redirects.items(), 50)
-        self.convert_coordinates(image_dir, 10, title_positions)
-
     def convert_articles(self, image_dir):
         import re
         endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
@@ -426,7 +453,7 @@ class DatafileStorage(object):
 
         print "Generating quadtrees..."
         data = self.get_quadtree_index_table(items,
-                                      -128.0, 128.0, -256.0, 256.0,
+                                      -91.0, 91.0, -181.0, 181.0,
                                       max_articles_per_section)
         with open(self.coordinates_file, 'wb') as coord_file:
             coord_file.write(data)
@@ -469,7 +496,7 @@ class DatafileStorage(object):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: %s --convert <dir>\n"
+        print("Usage: %s --convert <dir> <date> <language> <orig url>\n"
               "              converts an evopedia 2.0 article image\n"
               "              mounted at <dir> to evopedia 3.0 format\n"
               "          --article <text>\n"
@@ -477,13 +504,20 @@ if __name__ == "__main__":
               "          <text>\n"
               "              searches for <text>" % sys.argv[0])
     else:
-        backend = DatafileStorage('titles.idx', 'coordinates.idx', 'wikipedia_%02d.dat')
+        backend = DatafileStorage()
 
         if sys.argv[1] == '--convert':
-            backend.convert_image(sys.argv[2])
+            backend.storage_create(sys.argv[2],
+                                'titles.idx', 'coordinates.idx',
+                                'wikipedia_%02d.dat', 'metadata.txt',
+                                sys.argv[3], sys.argv[4], sys.argv[5])
         elif sys.argv[1] == '--article':
+            backend.storage_init_read('titles.idx', 'coordinates.idx',
+                                    'wikipedia_%02d.dat', 'metadata.txt')
             print backend.get_article_by_name(sys.argv[2].decode('utf-8'))
         else:
+            backend.storage_init_read('titles.idx', 'coordinates.idx',
+                                    'wikipedia_%02d.dat', 'metadata.txt')
             prefix = sys.argv[1].decode('utf-8')
             titles = backend.get_titles_with_prefix(prefix)
             for title, pos in itertools.islice(titles, 10):
