@@ -213,17 +213,13 @@ MapHandler.prototype = {
         };
 
         var text;
-        if (this.zoom < 9) {
-            text = 'Zoom in for articles.';
-        } else {
-            var lthis = this;
-            if (this.lastArticleRequest != null) {
-                this.lastArticleRequest.abort();
-            }
-            this.lastArticleRequest = makeHTTPRequest(makeURL('/geo', params),
-                    function(request) { lthis.updateArticlesResponse(request); });
-            text = 'Loading articles...';
+        var lthis = this;
+        if (this.lastArticleRequest != null) {
+            this.lastArticleRequest.abort();
         }
+        this.lastArticleRequest = makeHTTPRequest(makeURL('/geo', params),
+                function(request) { lthis.updateArticlesResponse(request); });
+        text = 'Loading articles...';
         this.errortext.innerHTML = '';
         this.errortext.appendChild(document.createTextNode(text));
         this.errortext.style.display = 'block';
