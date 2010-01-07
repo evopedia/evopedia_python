@@ -524,10 +524,17 @@ class TileRepo(object):
         if self.tilepath is not None:
             if self.get_local_tile(request_handler, x, y, zoom):
                 return
-            self.download_remote_tile(request_handler, x, y, zoom)
-            self.get_local_tile(request_handler, x, y, zoom)
+            # no local file found, so download it
+            try:
+                self.download_remote_tile(request_handler, x, y, zoom)
+            except OSError, URLError:
+                print("Downloading tile or saving of downloaded" +
+                        "tile could have failed.")
+            if self.get_local_tile(request_handler, x, y, zoom):
+                return
 
-        #self.redirect_to_remote_tile(request_handler, x, y, zoom)
+        # no local repository or error in it
+        self.redirect_to_remote_tile(request_handler, x, y, zoom)
         #self.send_remote_tile(request_handler, x, y, zoom)
 
     def get_local_tile(self, request_handler, x, y, zoom):
@@ -563,18 +570,16 @@ class TileRepo(object):
 
     def download_remote_tile(self, request_handler, x, y, zoom):
         url = self.get_remote_tile_url(x, y, zoom)
-        print("Fetchind %s..." % url)
-        f = urllib2.urlopen(url)
-        content = f.read()
+        print("Fetching tile %s..." % url)
+        content = urllib2.urlopen(url).read()
 
-        tiledir = self.tilepath + '/%d/%d/' % (zoom, x)
-        try:
+        tiledir = os.path.join(self.tilepath, str(zoom), str(x))
+        if not os.path.exists(tiledir):
             os.makedirs(tiledir)
-        except Exception:
-            """looks like if dir already exists"""
 
-        tilefile = self.tilepath + '/%d/%d/%d.png' % (zoom, x, y)
-        open(tilefile, 'w').write(content)
+        tilefile = os.path.join(tiledir, '%d.png' % (y,))
+        with open(tilefile, 'wb') as f:
+            f.write(content)
 
     def redirect_to_remote_tile(self, request_handler, x, y, zoom):
         request_handler.send_response(301)
