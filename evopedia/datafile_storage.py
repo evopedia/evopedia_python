@@ -67,15 +67,25 @@ class DatafileStorage(object):
             while lo < hi:
                 mid = (lo + hi) // 2
                 f_titles.seek(mid)
-                aftermid = mid + len(f_titles.readline()) # pot. incomplete
-                titleentry = f_titles.readline()
-                aftermid += len(titleentry)
-                (title, articlepos) = self.titleentry_decode(titleentry)
+                line = f_titles.readline()
+                aftermid = mid + len(line)
+                if mid > 0: # potentially incomplete line
+                    line = f_titles.readline()
+                    aftermid += len(line)
+                if line == '': # end of file
+                    hi = mid
+                    continue
+                (title, articlepos) = self.titleentry_decode(line)
                 title = evopediautils.normalize(title)
                 if title < prefix:
-                    lo = aftermid
+                    # position lo just before the next entry
+                    lo = aftermid - 1
                 else:
                     hi = mid
+
+            if lo > 0:
+                # let lo point to the start of an entry
+                lo += 1
 
             for (title, articlepos) in self.titlestream_at_offset(lo,
                                             titlefile=f_titles):
@@ -246,9 +256,6 @@ class DatafileStorage(object):
 
         try:
             f_titles.seek(offset, os.SEEK_SET)
-            # XXX check if the normal readline implementation is fast enough
-            # (reads chunks small enough) on the Freerunner
-
             for line in f_titles:
                 yield self.titleentry_decode(line)
         finally:
