@@ -270,6 +270,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         global static_path
 
         path = storage.get_datadir()
+        if not os.path.isdir(path):
+            path = os.path.expanduser("~/")
         try:
             path = self.decode(dict['path'][0])
         except (UnicodeDecodeError, TypeError, KeyError):
@@ -285,7 +287,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                         'select this folder here.</h2>')
         else:
             self.wfile.write('<h2>Please choose data directory</h2>')
-        self.wfile.write('<h3>%s</h3>' % saxutils.escape(path))
+        self.wfile.write('<h3>%s</h3>' % saxutils.escape(path.encode('utf-8')))
 
         (date, language) = (None, None)
         try:
@@ -297,7 +299,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         if date is not None:
             self.wfile.write(('<a href=/set_data?path=%s>' +
                     'Use this Wikipedia dump from %s, language: %s</a>') %
-                    (quote(path), date, language))
+                    (quote(path.encode('utf-8')), date, language))
 
         self.wfile.write('<ul>')
         for f in ['..'] + sorted([d for d in os.listdir(path)
@@ -305,7 +307,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             dir = os.path.join(path, f)
             if not os.path.isdir(dir):
                 continue
-            quotedpath = quote(dir)
+            quotedpath = quote(dir.encode('utf-8'))
             quotedname = saxutils.escape(f.encode('utf-8'))
             text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
                                         quotedpath, quotedname)
@@ -763,7 +765,6 @@ def main(configfile):
     data_dir = os.path.expanduser(data_dir)
     if not os.path.exists(data_dir):
         print("Data directory %s not found." % data_dir)
-        sys.exit(1)
 
     global tangogps_tilerepos
     tangogps_tilerepos = TileRepo.parse_tilerepos(repostring)
