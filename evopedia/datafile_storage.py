@@ -1,5 +1,22 @@
 #!/usr/bin/python
 # -*- encoding: utf-8
+#
+# evopedia, offline Wikipedia reader
+# Copyright (C) 2009-2010 Christian Reitwiessner <christian@reitwiessner.de>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 3 of the License, or (at your
+# option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public
+# License along with this program; if not, see
+# <http://www.gnu.org/licenses/>.
 
 from __future__ import with_statement
 
@@ -510,7 +527,8 @@ class DatafileStorage(object):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: %s --convert <dir> <date> <language> <orig url>\n"
+        print("Usage: %s\n"
+              "          --convert <dir> <date> <language> <orig url>\n"
               "              converts an evopedia 2.0 article image\n"
               "              mounted at <dir> to evopedia 3.0 format\n"
               "          --article <text>\n"

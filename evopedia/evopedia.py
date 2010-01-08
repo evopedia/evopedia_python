@@ -2,7 +2,7 @@
 # coding=utf8
 
 # evopedia, offline Wikipedia reader
-# Copyright (C) 2009 Christian Reitwiessner <christian@reitwiessner.de>
+# Copyright (C) 2009-2010 Christian Reitwiessner <christian@reitwiessner.de>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -283,8 +283,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
         if not storage.is_readable():
-            self.wfile.write('<h2>Please download wikipedia dump, ' +
-                        'extract it to some folder and ' +
+            self.wfile.write('<h2>Please download a Wikipedia dump, ' +
+                        'extract it to a folder on your device and ' +
                         'select this folder here.</h2>')
         else:
             self.wfile.write('<h2>Please choose data directory</h2>')
@@ -310,6 +310,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 continue
             quotedpath = quote(dir.encode('utf-8'))
             quotedname = saxutils.escape(f.encode('utf-8'))
+            if f == '..':
+                quotedname = 'parent directory'
             text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
                                         quotedpath, quotedname)
             self.wfile.write(text)
