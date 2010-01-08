@@ -227,7 +227,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 (x, y) = self.coords2pixel(zoom, (lat, lon))
                 self.wfile.write(((u'<article name="%s" x="%d" y="%d" ' +
                                    u'href="%s"/>') %
-                                   (saxutils.escape(name.encode('utf-8')), x, y,
+                                   (saxutils.escape(name.encode('utf-8')),
+                                    x, y,
                                     quote(url))).encode('utf-8'))
                 articlecount += 1
                 if articlecount > 100:
@@ -470,7 +471,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.wfile.write('<position x="%d" y="%d" zoom="%d"/>' %
                                  (coordx, coordy, zoom))
             else:
-                self.wfile.write('<error>GPS deactivated in configuration file</error>')
+                self.wfile.write('<error>GPS deactivated ' +
+                                'in configuration file</error>')
             return
         elif parts[0] == 'random':
             if not storage.is_readable():
@@ -752,7 +754,7 @@ def main(configfile):
                     "use_gps = yes\n" +
                     "maptile_repositories = \n" +
                     "data_directory = ~/\n")
-    
+
     config = ConfigParser.RawConfigParser()
     config.read(configfile_expanded)
 

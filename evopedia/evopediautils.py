@@ -92,6 +92,7 @@ normalization_table = {
 
 characters = "0123456789_abcdefghijklmnopqrstuvwxyz"
 
+
 def normalize(str):
     global normalization_table
     nt = normalization_table # optimization
