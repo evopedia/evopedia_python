@@ -15,23 +15,25 @@ import ConfigParser
 
 import evopediautils
 
-__all__ = ["DatafileStorage"] 
+__all__ = ["DatafileStorage"]
+
 
 class DatafileStorage(object):
     """Class for reading from and creating compressed wikipedia images.
-    
-    storage_init_read or storage_init_create have to be called to really use the
-    Storage."""
 
+    storage_init_read or storage_init_create have to be called to really
+    use the Storage."""
 
-    def storage_init_read(self, titles_file, coordinates_file,
-                            data_files_schema, metadata_file):
-        self.titles_file = titles_file
-        self.coordinates_file = coordinates_file
-        self.data_files_schema = data_files_schema
+    def storage_init_read(self, directory):
+        self.readable = 0
+
+        self.data_dir = directory
+        self.titles_file = os.path.join(directory, 'titles.idx')
+        self.coordinates_file = os.path.join(directory, 'coordinates.idx')
+        self.data_files_schema = os.path.join(directory, 'wikipedia_%02d.dat')
 
         parser = ConfigParser.RawConfigParser()
-        parser.read(metadata_file)
+        parser.read(os.path.join(directory, 'metadata.txt'))
 
         self.dump_date = parser.get('dump', 'date')
         self.dump_language = parser.get('dump', 'language')
@@ -39,6 +41,8 @@ class DatafileStorage(object):
         self.dump_version = parser.get('dump', 'version')
 
         self.titles_file_size = os.path.getsize(self.titles_file)
+
+        self.readable = 1
 
     def storage_create(self, image_dir, titles_file, coordinates_file,
                             data_files_schema, metadata_file,
@@ -64,6 +68,12 @@ class DatafileStorage(object):
             config.write(md_f)
 
     # --- storage interface ---
+    def get_datadir(self):
+        return self.data_dir
+
+    def is_readable(self):
+        return self.readable
+
     def get_date(self):
         return self.dump_date
 
@@ -75,7 +85,7 @@ class DatafileStorage(object):
 
     def get_article_by_name(self, name):
         """Get the text of an article.
-        
+
         Returns the text of the article with the (exact) specified name or
         None if the article does not exist.
         """
@@ -87,9 +97,9 @@ class DatafileStorage(object):
     def get_titles_with_prefix(self, prefix):
         """Generator that returns all titles with the specified prefix.
 
-        The generated items are pairs of title and position specifier. Note that
-        the prefix and the titles are only compared in their normalized (i.e.
-        with special symbols translated) form.
+        The generated items are pairs of title and position specifier. Note
+        that the prefix and the titles are only compared in their normalized
+        (i.e. with special symbols translated) form.
         """
         prefix = evopediautils.normalize(prefix)
 
@@ -164,16 +174,15 @@ class DatafileStorage(object):
         parser = ConfigParser.RawConfigParser()
         parser.read(metadata_file)
         return (parser.get('dump', 'date'), parser.get('dump', 'language'))
-        
     # --- end of storage interface ---
 
     def titles_in_coords_int(self, coordf, filepos, titlesf,
                                mintarget, maxtarget,
                                minlat, maxlat, minlon, maxlon):
         if (maxtarget[0] < minlat or maxlat <= mintarget[0]) or \
-           (maxtarget[1] < minlon or maxlon <= mintarget[1]):
-               # target rectangle does not overlap with current rectangle
-               return
+                (maxtarget[1] < minlon or maxlon <= mintarget[1]):
+            # target rectangle does not overlap with current rectangle
+            return
 
         coordf.seek(filepos, os.SEEK_SET)
         (selector,) = struct.unpack('<H', coordf.read(2))
@@ -213,18 +222,15 @@ class DatafileStorage(object):
                 (title, articlepos) = sef.titleentry_decode(titlesf.readline())
                 yield (title, lat, lon, '/wiki/' + title.encode('utf-8'))
 
-
-    # also handles redirects
     def get_article_by_pos(self, articlepos):
-        print articlepos
+        """Returns the text of the article referenced by articlepos, even if
+        articlepos specifies a redirection."""
         if articlepos[0] == 0xff: # redirect
             if articlepos[1] == 0xffffffff:
                 return None
             offset = articlepos[1]
-            print("redir...")
             (title, articlepos) = self.title_at_offset(offset)
 
-        print articlepos
         (filenr, block_start, block_offset, article_len) = articlepos
 
         with open(self.data_files_schema % filenr) as datafile:
@@ -249,7 +255,7 @@ class DatafileStorage(object):
 
     def titleentry_encode(self, articlepos, title):
         """Encodes the position specification of an article and its title.
-        
+
         The resulting data will only contain a line break at the end and the
         encoded position specification will have constant size.
         """
@@ -269,14 +275,14 @@ class DatafileStorage(object):
                                 title.encode('utf-8') + '\n'
 
     def titleentry_decode(self, data):
-        """Decodes the position specification and title of an article as encoded
-        by titleentry_encode."""
+        """Decodes the position specification and title of an article as
+        encoded by titleentry_encode."""
         (escapes,) = struct.unpack('<H', data[:2])
         escaped_position = data[2:15]
         title = data[15:-1].decode('utf-8')
         position = ''
         for (i, c) in enumerate(escaped_position):
-            if escapes & (1 <<  i) != 0:
+            if escapes & (1 << i) != 0:
                 position += '\n'
             else:
                 position += c
@@ -291,7 +297,6 @@ class DatafileStorage(object):
         with open(self.titles_file, 'rb') as f_titles:
             f_titles.seek(offset, os.SEEK_SET)
             return self.titleentry_decode(f_titles.readline())
-
 
     def titlestream_at_offset(self, offset, titlefile=None):
         if titlefile is None:
@@ -342,7 +347,6 @@ class DatafileStorage(object):
         with open(self.titles_file, 'wb') as f_titles:
             for title in self.titles:
                 if title[4]: # redirect
-                    filenr = 0xff
                     try:
                         dest_pos = title_positions[title[3]]
                     except KeyError:
@@ -522,12 +526,10 @@ if __name__ == "__main__":
                                 'wikipedia_%02d.dat', 'metadata.txt',
                                 sys.argv[3], sys.argv[4], sys.argv[5])
         elif sys.argv[1] == '--article':
-            backend.storage_init_read('titles.idx', 'coordinates.idx',
-                                    'wikipedia_%02d.dat', 'metadata.txt')
+            backend.storage_init_read('./')
             print backend.get_article_by_name(sys.argv[2].decode('utf-8'))
         else:
-            backend.storage_init_read('titles.idx', 'coordinates.idx',
-                                    'wikipedia_%02d.dat', 'metadata.txt')
+            backend.storage_init_read('./')
             prefix = sys.argv[1].decode('utf-8')
             titles = backend.get_titles_with_prefix(prefix)
             for title, pos in itertools.islice(titles, 10):

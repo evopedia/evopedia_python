@@ -37,10 +37,15 @@ import threading
 from random import randint, choice
 import urllib2
 import os
+import ConfigParser
 
-# do not put slashes at the end here!
-config = {'storage': 'datafile',
-          'static_path': '/usr/lib/evopedia/static'}
+configfile = '~/.evopediarc'
+static_path = '/usr/lib/evopedia/static/'
+storage = None
+storage_class = None
+tangogps_tilerepos = None
+gps_handler = None
+config = None
 
 try:
     import dbus
@@ -62,14 +67,14 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
     def output_wiki_page(self, url):
         global storage
-        global config
+        global static_path
 
         text = storage.get_article_by_name(url)
         if text is None:
             self.output_error_page()
         else:
             self.write_header(use_cache=1)
-            with open(os.path.join(config['static_path'], 'header.html')) as head:
+            with open(os.path.join(static_path, 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
             (lat, lon) = self.get_coords_in_article(text)
             if lat is not None and lon is not None:
@@ -82,27 +87,30 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     storage.get_orig_url(url))
             self.wfile.write('</div>')
             self.wfile.write(text)
-            with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+            with open(os.path.join(static_path, 'footer.html')) as foot:
                 shutil.copyfileobj(foot, self.wfile)
 
     def output_error_page(self):
+        global static_path
+
         self.send_response(404)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        with open(os.path.join(config['static_path'], 'header.html')) as head:
+        with open(os.path.join(static_path, 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write("</div>ERROR - Page not found")
-        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_error_msg_page(self, msg):
+        global static_path
         self.send_response(404)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        with open(os.path.join(config['static_path'], 'header.html')) as head:
+        with open(os.path.join(static_path, 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write((u"</div>ERROR: %s" % msg).encode('utf-8'))
-        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_search_result(self, query, limit):
@@ -178,11 +186,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             return (None, None)
 
     def output_map(self, coords, zoom):
+        global static_path
         TILESIZE = self.TILESIZE
 
         self.write_header()
 
-        with open(os.path.join(config['static_path'], 'mapheader.html')) as head:
+        with open(os.path.join(static_path, 'mapheader.html')) as head:
             shutil.copyfileobj(head, self.wfile)
 
         global tangogps_tilerepos
@@ -197,7 +206,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(text.encode('utf-8'))
 
-        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def output_geo_articles(self, zoom, minx, miny, maxx, maxy):
@@ -258,18 +267,24 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         global config
         global storage
         global storage_class
+        global static_path
 
-        path = config['data_dir']
+        path = storage.get_datadir()
         try:
             path = self.decode(dict['path'][0])
         except (UnicodeDecodeError, TypeError, KeyError):
             pass
         path = os.path.abspath(path)
 
-        with open(os.path.join(config['static_path'], 'header.html')) as head:
+        with open(os.path.join(static_path, 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
-        self.wfile.write('<h2>Please choose data directory</h2>')
+        if not storage.is_readable():
+            self.wfile.write('<h2>Please download wikipedia dump, ' +
+                        'extract it to some folder and ' +
+                        'select this folder here.</h2>')
+        else:
+            self.wfile.write('<h2>Please choose data directory</h2>')
         self.wfile.write('<h3>%s</h3>' % saxutils.escape(path))
 
         (date, language) = (None, None)
@@ -297,7 +312,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.wfile.write(text)
 
         self.wfile.write('</ul>')
-        with open(os.path.join(config['static_path'], 'footer.html')) as foot:
+        with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
     def write_header(self, content_type='text/html', use_cache=0):
@@ -323,6 +338,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global config
         global storage
+        global static_path
 
         dict = None
         i = self.path.rfind('?')
@@ -333,15 +349,11 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         parts = [self.decode(unquote(i)) for i in self.path.split('/') if i]
 
-        if storage is None and len(parts) >= 1 and parts[0] != 'choose_data':
-            # XXX only redirect for main pages and for parts that really
-            # need the data
-            self.send_response(302)
-            self.send_header('Location', '/choose_data')
-            self.end_headers()
-            return
-
         if len(parts) == 0:
+            if not storage.is_readable():
+                self.send_response(302)
+                self.send_header('Location', '/choose_data')
+                return
             # XXX Compare file dates (could be time-consuming), use
             # headers.getdate('If...')
             if self.headers.get('If-Modified-Since') is not None:
@@ -349,8 +361,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             self.write_header(use_cache=1)
-            with open(os.path.join(config['static_path'],
-                                'search.html')) as search:
+            with open(os.path.join(static_path, 'search.html')) as search:
                 data = search.read()
                 data = data.replace("EVOPEDIA_INFO",
                             ('<a href="%s">Wikipedia</a>, ' +
@@ -378,10 +389,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     self.write_header('application/javascript', use_cache=1)
                 else:
                     self.write_header(use_cache=1)
-                with open(os.path.join(config['static_path'], parts[1])) as fobj:
+                with open(os.path.join(static_path, parts[1])) as fobj:
                     shutil.copyfileobj(fobj, self.wfile)
                 return
         elif parts[0] == 'search':
+            if not storage.is_readable():
+                return
             try:
                 query = self.decode(dict['q'][0])
             except (UnicodeDecodeError, TypeError, KeyError):
@@ -420,6 +433,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 traceback.print_exc()
             return
         elif parts[0] == 'geo':
+            if not storage.is_readable():
+                return
             try:
                 minx = int(dict['minx'][0])
                 miny = int(dict['miny'][0])
@@ -440,20 +455,26 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
             global gps_handler
 
-            pos = gps_handler.get_gps_pos()
             self.write_header('text/xml')
             self.wfile.write("<?xml version='1.0' encoding='UTF-8' ?>\n")
-            if pos is False:
-                self.wfile.write('<error>No GPS Fix</error>')
-                return
+            if gps_handler is not None:
+                pos = gps_handler.get_gps_pos()
+                if pos is False:
+                    self.wfile.write('<error>No GPS Fix</error>')
+                    return
 
-            (coordx, coordy) = self.coords2pixel(zoom, pos)
+                (coordx, coordy) = self.coords2pixel(zoom, pos)
 
-            self.wfile.write('<position x="%d" y="%d" zoom="%d"/>' %
-                             (coordx, coordy, zoom))
-
+                self.wfile.write('<position x="%d" y="%d" zoom="%d"/>' %
+                                 (coordx, coordy, zoom))
+            else:
+                self.wfile.write('<error>GPS deactivated in configuration file</error>')
             return
         elif parts[0] == 'random':
+            if not storage.is_readable():
+                self.send_response(302)
+                self.send_header('Location', '/choose_data')
+                return
             title = storage.get_random_article()
             if title is not None:
                 self.send_response(302)
@@ -467,18 +488,17 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.output_data_selector(parts, dict)
             return
         elif parts[0] == 'set_data':
-            # XXX also save setting
             data_dir = dict['path'][0]
             print "Changing datafile storage to %s." % data_dir
-
             global storage_class
             from datafile_storage import DatafileStorage
             storage_class = DatafileStorage
             storage = DatafileStorage()
-            storage.storage_init_read(data_dir + '/titles.idx',
-                                      data_dir + '/coordinates.idx',
-                                      data_dir + '/wikipedia_%02d.dat',
-                                      data_dir + '/metadata.txt')
+            storage.storage_init_read(data_dir)
+            if storage.is_readable():
+                config.set('evopedia', 'data_directory', data_dir)
+                with open(os.path.expanduser(configfile), 'wb') as f:
+                    config.write(f)
             self.send_response(302)
             self.send_header('Location', '/')
             self.end_headers()
@@ -487,6 +507,10 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             if 'If-Modified-Since' in self.headers:
                 self.send_response(304)
                 self.end_headers()
+                return
+            if not storage.is_readable():
+                self.send_response(302)
+                self.send_header('Location', '/choose_data')
                 return
             if parts[0] == 'articles':
                 # compatibility for squashfs-style links in datafile storage
@@ -518,7 +542,7 @@ class GPSHandler(object):
         while True:
             try:
                 if self.gps_activated and \
-                   self.last_gps_usage < time.time() - 5 * 60:
+                            self.last_gps_usage < time.time() - 5 * 60:
                     self.release_gps()
                 time.sleep(60)
             except Exception, e:
@@ -531,13 +555,13 @@ class GPSHandler(object):
             if self.dbus is None:
                 self.dbus = dbus.SystemBus()
             gypsy_object = self.dbus.get_object("org.freedesktop.Gypsy",
-                                                "/org/freedesktop/Gypsy")
+                    "/org/freedesktop/Gypsy")
             self.gypsy = dbus.Interface(gypsy_object,
-                                        "org.freedesktop.Gypsy.Position")
+                    "org.freedesktop.Gypsy.Position")
             ousaged_object = self.dbus.get_object("org.freesmartphone.ousaged",
-                                                  "/org/freesmartphone/Usage")
+                    "/org/freesmartphone/Usage")
             self.ousaged = dbus.Interface(ousaged_object,
-                                          "org.freesmartphone.Usage")
+                    "org.freesmartphone.Usage")
         except dbus.exceptions.DBusException, e:
             print e
             if self.gypsy is None:
@@ -555,7 +579,7 @@ class GPSHandler(object):
             print e
 
     def update_gps_release_timer(self):
-# XXX don't use timer but interval that checks the last usage timestamp
+        # XXX don't use timer but interval that checks the last usage timestamp
         if self.gps_release_timer is not None:
             self.gps_release_timer.cancel()
         self.gps_release_timer = threading.Timer(5 * 60, self.release_gps)
@@ -596,7 +620,7 @@ class TileRepo(object):
 
     def __str__(self):
         return u'Tile Repository "%s" (%s, %s)' % (self.title, self.tilepath,
-                                                   self.tileurl)
+                self.tileurl)
 
     def output_map_tile(self, request_handler, x, y, zoom):
         if self.tilepath is not None:
@@ -608,8 +632,8 @@ class TileRepo(object):
             except OSError, URLError:
                 print("Downloading tile or saving of downloaded" +
                         "tile could have failed.")
-            if self.get_local_tile(request_handler, x, y, zoom):
-                return
+                if self.get_local_tile(request_handler, x, y, zoom):
+                    return
 
         # no local repository or error in it
         self.redirect_to_remote_tile(request_handler, x, y, zoom)
@@ -625,21 +649,21 @@ class TileRepo(object):
         # some special remote tile handlers copied from the tangogps source
         if self.tileurl in ('maps-for-free', 'openaerial'):
             request_handler.write_header(content_type='image/jpeg',
-                                         use_cache=1)
+                    use_cache=1)
         else:
             request_handler.write_header(content_type='image/png',
-                                         use_cache=1)
-        request_handler.wfile.write(image)
+                    use_cache=1)
+            request_handler.wfile.write(image)
         return True
 
     def get_remote_tile_url(self, x, y, zoom):
         # some special remote tile handlers copied from the tangogps source
         if self.tileurl == 'maps-for-free':
             return ('http://maps-for-free.com/layer/relief/' +
-                        'z%d/row%d/%d_%d-%d.jpg' % (zoom, y, zoom, x, y))
+                    'z%d/row%d/%d_%d-%d.jpg' % (zoom, y, zoom, x, y))
         elif self.tileurl == 'openaerial':
             return ('http://tile.openaerialmap.org/tiles/1.0.0/' +
-                        'openaerialmap-900913/%d/%d/%d.jpg' % (zoom, x, y))
+                    'openaerialmap-900913/%d/%d/%d.jpg' % (zoom, x, y))
         else:
             if self.zoom_last:
                 return self.tileurl % (x, y, zoom)
@@ -662,7 +686,7 @@ class TileRepo(object):
     def redirect_to_remote_tile(self, request_handler, x, y, zoom):
         request_handler.send_response(301)
         request_handler.send_header('Location',
-                                    self.get_remote_tile_url(x, y, zoom))
+                self.get_remote_tile_url(x, y, zoom))
         request_handler.end_headers()
 
     def send_remote_tile(self, request_handler, x, y, zoom):
@@ -672,10 +696,10 @@ class TileRepo(object):
         # XXX use write_header
         request_handler.send_response(200)
         request_handler.send_header('Content-type',
-                                    f.info().get('Content-type'))
+                f.info().get('Content-type'))
         # XXX Use real time (could be time-consuming)
         request_handler.send_header('Last-Modified',
-                                    'Thu, 01 Jan 1970 00:00:00 GMT')
+                'Thu, 01 Jan 1970 00:00:00 GMT')
         request_handler.end_headers()
         shutil.copyfileobj(f, request_handler.wfile)
 
@@ -694,9 +718,9 @@ class TileRepo(object):
         except Exception:
             if len(repos) == 0:
                 repos = [TileRepo('OSM',
-                                  'http://tile.openstreetmap.org/%d/%d/%d.png',
-                                  None, False)]
-        return repos
+                    'http://tile.openstreetmap.org/%d/%d/%d.png',
+                    None, False)]
+                return repos
 
 
 class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
@@ -708,57 +732,70 @@ class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
 # from disk.
 
 
-def main():
+def main(configfile):
     import sys
     import os
 
-    if len(sys.argv) < 2:
-        print("Usage: %s <data directory> [<port> [<tile repository string>]]"
-                % sys.argv[0])
-        sys.exit(1)
-
     global config
 
-    # XXX put this in user config
-    data_dir = sys.argv[1]
+    configfile_expanded = os.path.expanduser(configfile)
+
+    if not os.path.exists(configfile_expanded):
+        with open(configfile_expanded, 'wb') as c:
+            # write minimal default config
+            c.write("[evopedia]\n" +
+                    "version = 3.0\n" +
+                    "listen_address = 0.0.0.0\n" +
+                    "port = 8080\n" +
+                    "use_gps = yes\n" +
+                    "maptile_repositories = \n" +
+                    "data_directory = ~/\n")
+    
+    config = ConfigParser.RawConfigParser()
+    config.read(configfile_expanded)
+
+    port = config.getint('evopedia', 'port')
+    address = config.get('evopedia', 'listen_address')
+    use_gps = config.get('evopedia', 'use_gps')
+    repostring = config.get('evopedia', 'maptile_repositories')
+    data_dir = config.get('evopedia', 'data_directory')
+
+    data_dir = os.path.expanduser(data_dir)
     if not os.path.exists(data_dir):
         print("Data directory %s not found." % data_dir)
         sys.exit(1)
 
-    config['data_dir'] = data_dir
-
-    port = (int(sys.argv[2]) if len(sys.argv) >= 3 else 8080)
-    repostring = (sys.argv[3] if len(sys.argv) >= 4 else '')
-
     global tangogps_tilerepos
     tangogps_tilerepos = TileRepo.parse_tilerepos(repostring)
     print "Using map tile repositories " + str([x.title
-                                                for x in tangogps_tilerepos])
+                                            for x in tangogps_tilerepos])
 
     global gps_handler
-    gps_handler = GPSHandler()
+    if use_gps == 'yes' or use_gps == '1':
+        print("Enabling GPS...")
+        gps_handler = GPSHandler()
 
     global storage
     global storage_class
-    if config['storage'] == 'datafile':
-        print "Using datafile storage."
-        from datafile_storage import DatafileStorage
-        storage_class = DatafileStorage
-        storage = DatafileStorage()
-        storage.storage_init_read(data_dir + '/titles.idx',
-                                  data_dir + '/coordinates.idx',
-                                  data_dir + '/wikipedia_%02d.dat',
-                                  data_dir + '/metadata.txt')
-    else:
-        print "Unknown storage %s." % (config['storage'])
-        sys.exit(1)
+    print "Using datafile storage."
+    from datafile_storage import DatafileStorage
+    storage_class = DatafileStorage
+    storage = DatafileStorage()
+    try:
+        storage.storage_init_read(data_dir)
+    except ConfigParser.NoSectionError:
+        print("Error opening storage.")
+    except Exception:
+        print("Error opening storage.")
+        import traceback
+        traceback.print_exc()
 
     try:
-        server = ThreadingHTTPServer(('', port), EvopediaHandler)
+        server = ThreadingHTTPServer((address, port), EvopediaHandler)
         server.serve_forever()
     except KeyboardInterrupt:
         print '^C received, shutting down server'
         server.socket.close()
 
 if __name__ == '__main__':
-    main()
+    main(configfile)
