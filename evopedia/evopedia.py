@@ -380,7 +380,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
-                    'mapclient.js', 'map.js', 'zoomin.png',
+                    'mapclient.js', 'zoomin.png',
                     'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
                     'crosshairs.png']):
@@ -749,7 +749,7 @@ def main(configfile):
             # write minimal default config
             c.write("[evopedia]\n" +
                     "version = 3.0\n" +
-                    "listen_address = 0.0.0.0\n" +
+                    "listen_address = 127.0.0.1\n" +
                     "port = 8080\n" +
                     "use_gps = yes\n" +
                     "maptile_repositories = \n" +
