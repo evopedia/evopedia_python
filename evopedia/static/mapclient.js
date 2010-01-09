@@ -83,8 +83,8 @@ function MapHandler(zoom, centerx, centery, repos) {
         var last_data = hash.split(',');
 
         var lpzoom = parseInt(last_data[0]);
-        var lpcenterx = parseInt(last_data[1]);
-        var lpcentery = parseInt(last_data[2]);
+        var lpcenterx = parseFloat(last_data[1]);
+        var lpcentery = parseFloat(last_data[2]);
         repo = parseInt(last_data[3]);
         if (lpzoom != null && lpcenterx != null && lpcentery != null) {
             this.zoom = lpzoom;
@@ -273,15 +273,15 @@ MapHandler.prototype = {
             wikipedialink.src = '/static/wikipedia.png';
             wikipedialink.articleName = article.getAttribute('name');
             wikipedialink.articleLink = article.getAttribute('href');
-            wikipedialink.articleInfodivpos = (parseInt(article.getAttribute('y')) - toplefty + 16) > this.map_height / 2 ? 'top' : 'bottom';
+            wikipedialink.articleInfodivpos = (parseFloat(article.getAttribute('y')) - toplefty + 16) > this.map_height / 2 ? 'top' : 'bottom';
             wikipedialink.style.position = 'absolute';
-            wikipedialink.style.left = (parseInt(article.getAttribute('x')) - topleftx - 16) + 'px';
-            wikipedialink.style.top = (parseInt(article.getAttribute('y')) - toplefty - 16) + 'px';
+            wikipedialink.style.left = (parseFloat(article.getAttribute('x')) - topleftx - 16) + 'px';
+            wikipedialink.style.top = (parseFloat(article.getAttribute('y')) - toplefty - 16) + 'px';
             wikipedialink.onclick = function(e) { return lthis.articleClicked(this, e); };
             this.articleContainer.appendChild(wikipedialink);
             this.articles[this.articles.length] = {
-                                            left: parseInt(article.getAttribute('x')) - topleftx - 16,
-                                            top: parseInt(article.getAttribute('y')) - toplefty - 16,
+                                            left: parseFloat(article.getAttribute('x')) - topleftx - 16,
+                                            top: parseFloat(article.getAttribute('y')) - toplefty - 16,
                                             icon: wikipedialink
                                         };
         }
@@ -311,7 +311,7 @@ MapHandler.prototype = {
         }
 
         if (pos === null || parseInt(pos.getAttribute('zoom')) != this.zoom) return;
-        this.gps_pos = [parseInt(pos.getAttribute('x')), parseInt(pos.getAttribute('y'))];
+        this.gps_pos = [parseFloat(pos.getAttribute('x')), parseFloat(pos.getAttribute('y'))];
 
         this.updateCrosshairs(this.centerx, this.centery, this.zoom);
     },

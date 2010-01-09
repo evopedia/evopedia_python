@@ -196,7 +196,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         # XXX "repr" below could behave a bit different than expected
         #     but we'll see.
         text = (u'<script type="text/javascript">' +
-                u'var map = new MapHandler(%d, %d, %d, %s);</script>' %
+                u'var map = new MapHandler(%d, %f, %f, %s);</script>' %
                 (zoom, tx, ty, repr([x.title for x in tangogps_tilerepos])))
 
         self.wfile.write(text.encode('utf-8'))
@@ -220,7 +220,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             for (name, lat, lon) in storage.titles_in_coords(mincoords,
                                                                  maxcoords):
                 (x, y) = self.coords2pixel(zoom, (lat, lon))
-                text = '<article name="%s" x="%d" y="%d" href="%s"/>' % \
+                text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
                         (saxutils.escape(name.encode('utf-8')), x, y,
                         pathname2url('/wiki/' + name.encode('utf-8')))
                 self.wfile.write(text)
@@ -241,7 +241,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         lat = math.atanh(math.sin(lat / 180 * math.pi))
         lat = - lat / (2 * math.pi) + 0.5
         scale = 2 ** zoom * TILESIZE
-        return (int(lon * scale), int(lat * scale))
+        return (lon * scale, lat * scale)
 
     def pixel2coords(self, zoom, pixel):
         TILESIZE = self.TILESIZE
@@ -446,7 +446,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
                 (coordx, coordy) = self.coords2pixel(zoom, pos)
 
-                self.wfile.write('<position x="%d" y="%d" zoom="%d"/>' %
+                self.wfile.write('<position x="%f" y="%f" zoom="%d"/>' %
                                  (coordx, coordy, zoom))
             else:
                 self.wfile.write('<error>GPS deactivated ' +
