@@ -558,7 +558,7 @@ class GPSHandlerGypsy(GPSHandler):
         GPSHandler.__init__(self)
 
     @staticmethod
-    def is_usable(self):
+    def is_usable():
         try:
             import dbus
             # we could check if gypsy exists on the bus, but that
