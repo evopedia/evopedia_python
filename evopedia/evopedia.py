@@ -68,7 +68,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         if text is None:
             self.output_error_page()
         else:
-            self.write_header(use_cache=1)
+            self.write_header()
             with open(os.path.join(static_path, 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
             (lat, lon) = self.get_coords_in_article(text)
@@ -314,14 +314,13 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
-    def write_header(self, content_type='text/html', use_cache=0):
+    def write_header(self, content_type='text/html', charset='UTF-8'):
         self.send_response(200)
-        if use_cache:
-            # XXX test if caching is really relevant (browser does not use it)
-            # XXX Use real time (could be time-consuming)
-            #self.send_header('Last-Modified', 'Thu, 01 Jan 1970 00:00:00 GMT')
-            pass
-        self.send_header('Content-type', content_type + '; charset=UTF-8')
+        if charset is not None:
+            charset = '; charset=' + charset
+        else:
+            charset = ''
+        self.send_header('Content-type', content_type + charset)
         self.end_headers()
 
     def decode(self, s):
@@ -353,13 +352,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
                 return
-            # XXX Compare file dates (could be time-consuming), use
-            # headers.getdate('If...')
-            if self.headers.get('If-Modified-Since') is not None:
-                self.send_response(304)
-                self.end_headers()
-                return
-            self.write_header(use_cache=1)
+            self.write_header()
             with open(os.path.join(static_path, 'search.html')) as search:
                 data = search.read()
                 data = data.replace("EVOPEDIA_INFO",
@@ -370,24 +363,19 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.wfile.write(data)
             return
         elif parts[0] == 'static':
-            # XXX Compare file dates (could be time-consuming)
-            if self.headers.get('If-Modified-Since') is not None:
-                self.send_response(304)
-                self.end_headers()
-                return
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
                     'mapclient.js', 'zoomin.png',
                     'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
                     'crosshairs.png']):
                 if parts[1].endswith('.png'):
-                    self.write_header('image/png', use_cache=1)
+                    self.write_header('image/png')
                 elif parts[1].endswith('.css'):
-                    self.write_header('text/css', use_cache=1)
+                    self.write_header('text/css')
                 elif parts[1].endswith('.js'):
-                    self.write_header('application/javascript', use_cache=1)
+                    self.write_header('application/javascript')
                 else:
-                    self.write_header(use_cache=1)
+                    self.write_header()
                 with open(os.path.join(static_path, parts[1])) as fobj:
                     shutil.copyfileobj(fobj, self.wfile)
                 return
@@ -414,12 +402,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.output_map(coords, zoom)
             return
         elif parts[0] == 'maptile':
-            # XXX Compare file dates (could be time-consuming)
-            if self.headers.get('If-Modified-Since') is not None:
-                print("cache hit")
-                self.send_response(304)
-                self.end_headers()
-                return
             try:
                 (repoindex, z, x, y) = parts[1:5]
                 y = y.split('.')[0]
@@ -504,10 +486,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         elif parts[0] in ('wiki', 'articles'):
-            if 'If-Modified-Since' in self.headers:
-                self.send_response(304)
-                self.end_headers()
-                return
             if not storage.is_readable():
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
@@ -712,11 +690,9 @@ class TileRepo(object):
             return False
         # some special remote tile handlers copied from the tangogps source
         if self.tileurl in ('maps-for-free', 'openaerial'):
-            request_handler.write_header(content_type='image/jpeg',
-                    use_cache=1)
+            request_handler.write_header(content_type='image/jpeg')
         else:
-            request_handler.write_header(content_type='image/png',
-                    use_cache=1)
+            request_handler.write_header(content_type='image/png')
             request_handler.wfile.write(image)
         return True
 
@@ -755,16 +731,10 @@ class TileRepo(object):
 
     def send_remote_tile(self, request_handler, x, y, zoom):
         url = self.get_remote_tile_url(x, y, zoom)
-        print("Fetchind %s..." % url)
+        print("Fetching %s..." % url)
         f = urllib2.urlopen(url)
-        # XXX use write_header
-        request_handler.send_response(200)
-        request_handler.send_header('Content-type',
-                f.info().get('Content-type'))
-        # XXX Use real time (could be time-consuming)
-        request_handler.send_header('Last-Modified',
-                'Thu, 01 Jan 1970 00:00:00 GMT')
-        request_handler.end_headers()
+        request_handler.write_header(f.info().get('Content-type'),
+                                     charset=None)
         shutil.copyfileobj(f, request_handler.wfile)
 
     @staticmethod
@@ -789,11 +759,6 @@ class TileRepo(object):
 
 class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
     daemon_threads = True
-
-
-# XXX The caching used here for articles and map tiles assumes that content
-# never changes. You have to empty the browser's cache to get a new version
-# from disk.
 
 
 def main(configfile):
