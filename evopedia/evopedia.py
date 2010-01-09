@@ -48,11 +48,6 @@ gps_handler = None
 config = None
 
 try:
-    import dbus
-except ImportError:
-    dbus = None
-
-try:
     math.atanh(0)
 except AttributeError:
     math.atanh = lambda x: .5 * (math.log(1 + x) - math.log(1 - x))
@@ -219,24 +214,23 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         maxcoords = self.pixel2coords(zoom, (maxx, miny))
 
         try:
-            self.wfile.write(u'<articles>'.encode('utf-8'))
+            self.wfile.write('<articles>')
 
             articlecount = 0
-            for (name, lat, lon, url) in storage.titles_in_coords(mincoords,
+            for (name, lat, lon) in storage.titles_in_coords(mincoords,
                                                                  maxcoords):
                 (x, y) = self.coords2pixel(zoom, (lat, lon))
-                self.wfile.write(((u'<article name="%s" x="%d" y="%d" ' +
-                                   u'href="%s"/>') %
-                                   (saxutils.escape(name.encode('utf-8')),
-                                    x, y,
-                                    quote(url))).encode('utf-8'))
+                text = '<article name="%s" x="%d" y="%d" href="%s"/>' % \
+                        (saxutils.escape(name.encode('utf-8')), x, y,
+                        pathname2url('/wiki/' + name.encode('utf-8')))
+                self.wfile.write(text)
                 articlecount += 1
                 if articlecount > 100:
-                    self.wfile.write((u'<error>Zoom in for more articles.' +
-                                      u'</error>').encode('utf-8'))
+                    self.wfile.write('<error>Zoom in for more articles.' +
+                                      '</error>')
                     break
 
-            self.wfile.write((u'</articles>').encode('utf-8'))
+            self.wfile.write('</articles>')
         except IOError:
             print("geo request cancelled by browser")
 
@@ -283,9 +277,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
         if not storage.is_readable():
-            self.wfile.write('<h2>Please download a ' +
-                        '<a href="http://wiki.maemo.org/Evopedia">' +
-                                'Wikipedia dump</a>, ' +
+            self.wfile.write('<h2>Please download a Wikipedia dump, ' +
                         'extract it to a folder on your device and ' +
                         'select this folder here.</h2>')
         else:
@@ -304,16 +296,16 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     'Use this Wikipedia dump from %s, language: %s</a>') %
                     (quote(path.encode('utf-8')), date, language))
 
-        self.wfile.write('<a href="/choose_data?path=%s">%s</a></li>' %
-                (os.path.join(path, '..'), 'parent directory'))
         self.wfile.write('<ul>')
-        for f in sorted([d for d in os.listdir(path)
+        for f in ['..'] + sorted([d for d in os.listdir(path)
                                         if not d.startswith('.')]):
             dir = os.path.join(path, f)
             if not os.path.isdir(dir):
                 continue
             quotedpath = quote(dir.encode('utf-8'))
             quotedname = saxutils.escape(f.encode('utf-8'))
+            if f == '..':
+                quotedname = 'parent directory'
             text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
                                         quotedpath, quotedname)
             self.wfile.write(text)
@@ -532,13 +524,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
 
 class GPSHandler(object):
-
     def __init__(self):
-        self.dbus = None
-        self.ousaged = None
-        self.gypsy = None
         self.gps_release_timer = None
-
         self.gps_activated = False
         self.last_gps_usage = 0
 
@@ -556,9 +543,54 @@ class GPSHandler(object):
             except Exception, e:
                 print e
 
-    def init_dbus(self):
-        if dbus is None:
+    def get_gps_pos(self):
+        self.last_gps_usage = time.time()
+        if not self.gps_activated:
+            if not self.request_gps():
+                return False
+            self.gps_activated = True
+
+        return self.get_gps_pos_internal()
+
+    def update_gps_release_timer(self):
+        # XXX don't use timer but interval that checks the last usage timestamp
+        if self.gps_release_timer is not None:
+            self.gps_release_timer.cancel()
+        self.gps_release_timer = threading.Timer(5 * 60, self.release_gps)
+        self.gps_release_timer.start()
+
+    @staticmethod
+    def handler_factory():
+        if GPSHandlerLiblocation.is_usable():
+            print("Accessing GPS via liblocation")
+            return GPSHandlerLiblocation()
+        if GPSHandlerGypsy.is_usable():
+            print("Accessing GPS via Gypsy")
+            return GPSHandlerGypsy()
+        return None
+
+
+class GPSHandlerGypsy(GPSHandler):
+
+    def __init__(self):
+        self.dbus = None
+        self.ousaged = None
+        self.gypsy = None
+
+        GPSHandler.__init__(self)
+
+    @staticmethod
+    def is_usable(self):
+        try:
+            import dbus
+            # we could check if gypsy exists on the bus, but that
+            # would directly activate GPS
+            return True
+        except ImportError:
             return False
+
+    def init_dbus(self):
+        import dbus
         try:
             if self.dbus is None:
                 self.dbus = dbus.SystemBus()
@@ -579,27 +611,18 @@ class GPSHandler(object):
     def request_gps(self):
         self.last_gps_usage = time.time()
         if self.gps_activated:
-            return
+            return True
+        if self.gypsy is None:
+            self.init_dbus()
         try:
             self.ousaged.RequestResource("GPS")
             self.gps_activated = True
+            return True
         except Exception, e:
             print e
+        return False
 
-    def update_gps_release_timer(self):
-        # XXX don't use timer but interval that checks the last usage timestamp
-        if self.gps_release_timer is not None:
-            self.gps_release_timer.cancel()
-        self.gps_release_timer = threading.Timer(5 * 60, self.release_gps)
-        self.gps_release_timer.start()
-
-    def get_gps_pos(self):
-        if self.gypsy is None:
-            if not self.init_dbus():
-                return False
-
-        self.request_gps()
-
+    def get_gps_pos_interal(self):
         (valid, tstamp, lat, lng, alt) = self.gypsy.GetPosition()
 
         if lat != 0 and lng != 0:
@@ -613,6 +636,39 @@ class GPSHandler(object):
             return
         print("Releasing GPS...")
         self.ousaged.ReleaseResource("GPS")
+
+class GPSHandlerLiblocation(GPSHandler):
+
+    def __init__(self):
+        import location
+        self.control = location.GPSDControl.get_default()
+        self.device = location.GPSDevice()
+
+        GPSHandler.__init__(self)
+
+    @staticmethod
+    def is_usable():
+        try:
+            import location
+            return True
+        except ImportError:
+            return False
+
+    def request_gps(self):
+        self.control.start()
+        return True
+
+    def get_gps_pos_internal(self):
+        (lat, lon) = self.device.fix[4:6]
+        if lat == lat and lon == lon:
+            return (lat, lon)
+        else:
+            return False
+
+    def release_gps(self):
+        self.gps_activated = False
+        print("Releasing GPS...")
+        self.control.stop()
 
 
 class TileRepo(object):
@@ -780,7 +836,7 @@ def main(configfile):
     global gps_handler
     if use_gps == 'yes' or use_gps == '1':
         print("Enabling GPS...")
-        gps_handler = GPSHandler()
+        gps_handler = GPSHandler.handler_factory()
 
     global storage
     global storage_class
@@ -803,6 +859,7 @@ def main(configfile):
     except KeyboardInterrupt:
         print '^C received, shutting down server'
         server.socket.close()
+        sys.exit(0)
 
 if __name__ == '__main__':
     main(configfile)

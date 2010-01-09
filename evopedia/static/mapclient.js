@@ -130,7 +130,8 @@ function MapHandler(zoom, centerx, centery, repos) {
 
     window.onresize = function() { lthis.browserResized(); };
 
-    window.setTimeout(function() { lthis.browserResized(); }, 10);
+    window.setTimeout(function() { lthis.browserResized();
+                                   lthis.updateGPSPosition(); }, 10);
     this.gpsPositionUpdateInterval = window.setInterval(function() { lthis.updateGPSPosition(); }, 10000);
 }
 
@@ -224,6 +225,7 @@ MapHandler.prototype = {
         this.errortext.appendChild(document.createTextNode(text));
         this.errortext.style.display = 'block';
 
+        /* this code is almost duplicated at updateCrosshairs */
         var factor = 1;
         if (this.zoom < zoom) {
             factor = 1 << (zoom - this.zoom);
@@ -314,12 +316,25 @@ MapHandler.prototype = {
         this.updateCrosshairs(this.centerx, this.centery, this.zoom);
     },
 
-    updateCrosshairs: function() {
+    updateCrosshairs: function(centerx, centery, zoom) {
         if (this.gps_pos === null) {
             this.crosshairs.style.display = 'none';
         } else {
-            var topleftx = Math.floor(this.centerx - this.map_width / 2);
-            var toplefty = Math.floor(this.centery - this.map_height / 2);
+            /* this code is almost duplicated at updateArticles */
+            var factor = 1;
+            if (this.zoom < zoom) {
+                factor = 1 << (zoom - this.zoom);
+            } else if (this.zoom > zoom) {
+                factor = 1 / (1 << (this.zoom - zoom));
+            }
+            var xoffset = 0;//this.map_width / 2  * (1 - factor);
+            var yoffset = 0;//this.map_height / 2  * (1 - factor);
+
+            this.gps_pos[0] = this.gps_pos[0] * factor + xoffset;
+            this.gps_pos[1] = this.gps_pos[1] * factor + yoffset;
+
+            var topleftx = Math.floor(centerx - this.map_width / 2);
+            var toplefty = Math.floor(centery - this.map_height / 2);
             this.crosshairs.style.left = (this.gps_pos[0] - topleftx - 15) + 'px';
             this.crosshairs.style.top = (this.gps_pos[1] - toplefty - 15) + 'px';
             this.crosshairs.style.display = 'block';
@@ -375,17 +390,9 @@ MapHandler.prototype = {
         if (delta > 0) {
             centerx = this.centerx * (1 << delta);
             centery = this.centery * (1 << delta);
-            if (this.gps_pos != null) {
-                this.gps_pos[0] *= 1 << delta;
-                this.gps_pos[1] *= 1 << delta;
-            }
         } else {
             centerx = this.centerx / (1 << (-delta));
             centery = this.centery / (1 << (-delta));
-            if (this.gps_pos != null) {
-                this.gps_pos[0] /= 1 << (-delta);
-                this.gps_pos[1] /= 1 << (-delta);
-            }
         }
 
         this.updateMap(centerx, centery, zoom);

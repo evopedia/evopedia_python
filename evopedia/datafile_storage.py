@@ -236,8 +236,8 @@ class DatafileStorage(object):
                         mintarget[1] <= lon <= maxtarget[1]):
                     continue
                 titlesf.seek(title_pos, os.SEEK_SET)
-                (title, articlepos) = sef.titleentry_decode(titlesf.readline())
-                yield (title, lat, lon, '/wiki/' + title.encode('utf-8'))
+                (title, articlepos) = self.titleentry_decode(titlesf.readline())
+                yield (title, lat, lon)
 
     def get_article_by_pos(self, articlepos):
         """Returns the text of the article referenced by articlepos, even if
