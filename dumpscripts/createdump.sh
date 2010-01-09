@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# mediawiki mysql password
+# mediawiki mysql settings
+dbuser=root
 password=PASSWORD
+database=wikidb
 
 # directory where this script and the contents of the scripts archive are
 SCRIPTDIR="/mnt/storage/scripts"
@@ -36,8 +38,8 @@ createTables()
 {
 	PREFIX="$1"
 	echo "(Re-)creating db tables for prefix \"$PREFIX""\"."
-	cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u root --password=$password wikidb
-	cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u root --password=$password wikidb
+	cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u "$dbuser" --password=$password "$database"
+	cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u "$dbuser" --password=$password "$database"
 }
 
 
@@ -54,7 +56,7 @@ importLanguage()
 	rm "$IMPORTTEMPDIR"/*
 
 	bunzip2 < "$SOURCEDUMPDIR/$LANG/"wiki-latest-pages-articles.xml.bz2 | \
-	grep -v '<redirect />' | ./xml2sql -o "$IMPORTTEMPDIR" -v
+	grep -v '<redirect />' | "$SCRIPTDIR"/xml2sql -o "$IMPORTTEMPDIR" -v
 	# we have to remove all <redirect /> tags because xml2sql cannot handle them
 	# (the bug does not occur with wikipedia dumps prior to july 2009)
 
@@ -63,7 +65,7 @@ importLanguage()
 		echo "Importing table $x..."
 		DUMPFILE="$IMPORTTEMPDIR/$PREFIX""$x.txt"
 		[ x"$PREFIX" != x ] && mv "$IMPORTTEMPDIR/$x.txt" "$DUMPFILE"
-		mysqlimport -u root --password="$password" --local wikidb "$DUMPFILE"
+		mysqlimport -u "$dbuser" --password="$password" --local "$database" "$DUMPFILE"
 		rm "$DUMPFILE"
 	done
 
@@ -85,14 +87,14 @@ importLanguage()
 		echo "RENAME TABLE image TO $PREFIX""image;"
 		echo "RENAME TABLE image_switch_temp TO image;"
 	fi
-	) | mysql -u root --password=$password wikidb
+	) | mysql -u "$dbuser" --password=$password "$database"
 
 	echo "Importing categories..."
 	(
 	gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-category.sql.gz" | \
 	awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
 	# remove the drop and recreate table (with potentially other engine) statements
-	) | mysql -u root --password=$password wikidb
+	) | mysql -u "$dbuser" --password=$password "$database"
 
 	echo "Import done, changing mediawiki settings..."
 	(
