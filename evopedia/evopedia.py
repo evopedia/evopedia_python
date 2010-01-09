@@ -283,7 +283,9 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
         if not storage.is_readable():
-            self.wfile.write('<h2>Please download a Wikipedia dump, ' +
+            self.wfile.write('<h2>Please download a ' +
+                        '<a href="http://wiki.maemo.org/Evopedia">' +
+                                'Wikipedia dump</a>, ' +
                         'extract it to a folder on your device and ' +
                         'select this folder here.</h2>')
         else:
@@ -302,16 +304,16 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     'Use this Wikipedia dump from %s, language: %s</a>') %
                     (quote(path.encode('utf-8')), date, language))
 
+        self.wfile.write('<a href="/choose_data?path=%s">%s</a></li>' %
+                (os.path.join(path, '..'), 'parent directory'))
         self.wfile.write('<ul>')
-        for f in ['..'] + sorted([d for d in os.listdir(path)
+        for f in sorted([d for d in os.listdir(path)
                                         if not d.startswith('.')]):
             dir = os.path.join(path, f)
             if not os.path.isdir(dir):
                 continue
             quotedpath = quote(dir.encode('utf-8'))
             quotedname = saxutils.escape(f.encode('utf-8'))
-            if f == '..':
-                quotedname = 'parent directory'
             text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
                                         quotedpath, quotedname)
             self.wfile.write(text)
