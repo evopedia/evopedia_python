@@ -19,7 +19,8 @@ class DumpHTML {
 	var $interwiki = true;
 
 	# Depth of HTML directory tree
-	var $depth = 6;
+	#var $depth = 6;
+	var $depth = 0;
 
 	# Directory that commons images are copied into
 	var $sharedStaticDirectory;
@@ -334,7 +335,7 @@ class DumpHTML {
 		#$images = $this->findImages( $text );
 		#$this->copyImages( $images );
 		
-		$file = fopen( "{$this->dest}/articles/index.html", "w" );
+		$file = fopen( "{$this->dest}/index.html", "w" );
 		if ( !$file ) {
 			print "\nCan't open index.html for writing\n";
 			return false;
@@ -646,16 +647,18 @@ class DumpHTML {
 
 		list($lat1, $lat2) = explode(".", sprintf("%012.7f", $coords[0]));
 		list($lon1, $lon2) = explode(".", sprintf("%012.7f", $coords[1]));
-		$path = "articles/coords/" . substr($lat1, 0, -1) . "/" . substr($lon1, 0, -1) . "/" .
-			substr($lat1, -1) . "/" . substr($lon1, -1) . "/" .
-			$lat2[0] . "/" . $lon2[0] . "/" .
-			$lat2[1] . "/" . $lon2[1] . "/";
-	        $linkname = sprintf("%f,%f,%s", $coords[0], $coords[1], basename($destfile));
+		#$path = "articles/coords/" . substr($lat1, 0, -1) . "/" . substr($lon1, 0, -1) . "/" .
+		#	substr($lat1, -1) . "/" . substr($lon1, -1) . "/" .
+		#	$lat2[0] . "/" . $lon2[0] . "/" .
+		#	$lat2[1] . "/" . $lon2[1] . "/";
+		$path = "coords";
+		$linkname = sprintf("%f,%f,%s", $coords[0], $coords[1], basename($destfile));
 
 		if ( !$this->mkdir( $this->dest . "/" . $path ) ) {
 			print "Error: unable to create directory '" . $this->dest . "/" . $path . "'.\n";
 		}
-		symlink("../../../../../../../../../../" . $destfile, $this->dest . "/" . $path . "/" . $linkname);
+		#symlink("../../../../../../../../../../" . $destfile, $this->dest . "/" . $path . "/" . $linkname);
+		symlink($destfile, $this->dest . "/" . $path . "/" . $linkname);
 	}
 
 	/** Write the given text to the file identified by the given title object */
@@ -1006,7 +1009,8 @@ class DumpHTML {
 
                 global $wgArticlePath;
                 $oldArticlePath = $wgArticlePath;
-                $wgArticlePath = str_repeat( '../', $this->depth + 1 ) . '$1';
+                #$wgArticlePath = str_repeat( '../', $this->depth + 1 ) . '$1';
+                $wgArticlePath = '$1';
                 $url = array(urldecode($rt->getLocalURL()));
                 $wgArticlePath = $oldArticlePath;
                 return $url;
@@ -1186,27 +1190,28 @@ ENDTEXT;*/
 			return 'index.html';
 		}
 
-		return 'articles/' . $this->getHashedDirectory( $title ) . '/' .
-			$this->getFriendlyName( $dbkey ) . '.html';
+		#return 'articles/' . $this->getHashedDirectory( $title ) . '/' .
+		#	$this->getFriendlyName( $dbkey ) . '.html';
+		return $this->getFriendlyName( $dbkey );
 	}
 
 	function getFriendlyName( $name ) {
-		global $wgLang;
+		#global $wgLang;
 		# Replace illegal characters for Windows paths with underscores
 		$friendlyName = strtr( $name, '/\\*?"<>|~', '_________' );
 
 		# Work out lower case form. We assume we're on a system with case-insensitive
 		# filenames, so unless the case is of a special form, we have to disambiguate
-		if ( function_exists( 'mb_strtolower' ) ) {
-			$lowerCase = $wgLang->ucfirst( mb_strtolower( $name ) );
-		} else {
-			$lowerCase = ucfirst( strtolower( $name ) );
-		}
+		#if ( function_exists( 'mb_strtolower' ) ) {
+		#	$lowerCase = $wgLang->ucfirst( mb_strtolower( $name ) );
+		#} else {
+		#	$lowerCase = ucfirst( strtolower( $name ) );
+		#}
 
 		# Make it mostly unique
-		if ( $lowerCase != $friendlyName  ) {
-			$friendlyName .= '_' . substr(md5( $name ), 0, 4);
-		}
+		#if ( $lowerCase != $friendlyName  ) {
+		#	$friendlyName .= '_' . substr(md5( $name ), 0, 4);
+		#}
 		# Handle colon specially by replacing it with tilde
 		# Thus we reduce the number of paths with hashes appended
 		$friendlyName = str_replace( ':', '~', $friendlyName );
