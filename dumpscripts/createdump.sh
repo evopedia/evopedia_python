@@ -28,6 +28,7 @@ getSourceDumps()
 
 	DESTDIR="$SOURCEDUMPDIR/$LANG"
 	mkdir "$DESTDIR"
+	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-pages-articles.xml.bz2-rss.xml" -O "$DESTDIR/info.rss"
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-pages-articles.xml.bz2" -O "$DESTDIR/wiki-latest-pages-articles.xml.bz2"
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-image.sql.gz" -O "$DESTDIR/wiki-latest-image.sql.gz"
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-category.sql.gz" -O "$DESTDIR/wiki-latest-category.sql.gz"
@@ -139,11 +140,32 @@ dumpWiki()
 		echo "Doing slice $i of $slices"
 		php "$MEDIAWIKIDIR/extensions/DumpHTML/dumpHTML.php" -d "$DESTDUMPTEMPDIR/$LANG" --slice $i/$slices
 	done
-	date -u -R > "$DESTDUMPTEMPDIR/$LANG/articles/creation_date"
-        echo "evopedia version 0.2 depth 6" > "$DESTDUMPTEMPDIR/$LANG/articles/evopedia_version"
-	/usr/local/bin/mksquashfs "$DESTDUMPTEMPDIR/$LANG/articles" "$DESTDUMPDIR/$LANG/wikipedia.squashfs" -no-recovery -no-exports -noappend -all-root
-	chmod go+r "$DESTDUMPDIR/$LANG/wikipedia.squashfs"
+}
+
+packageDump()
+{
+	LANG="$1"
+
+        rm -r "$DESTDUMPTEMPDIR/$LANG/raw"
+        rm -r "$DESTDUMPTEMPDIR/$LANG/misc"
+        #rm -r "$DESTDUMPTEMPDIR/$LANG/skins"
+        #rm -r "$DESTDUMPTEMPDIR/$LANG/dumpHTML.version"
+        #rm -r "$DESTDUMPTEMPDIR/$LANG/index.html"
+        # XXX localize that
+        #cp "$DESTDUMPTEMPDIR/$LANG/index.html" "$DESTDUMPTEMPDIR/$LANG/Hauptseite"
+
+	dumpdate=`cat "$SOURCEDUMPDIR/$LANG/info.rss" | \
+        grep '<title>http://download.wikimedia.org/dewiki/' | \
+        sed -e 's/.*download.wikimedia.org\/dewiki\/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)<\/title>.*/\1-\2-\3/'`
+
+        (
+        cd "$DESTDUMPDIR/$LANG/"
+        $SCRIPTDIR/datafile_storage.py --convert "$DESTDUMPTEMPDIR/$LANG/" "$dumpdate" "$LANG" "http://$LANG.wikipedia.org/wiki/"
+        tar czvf "$DESTDUMPDIR/$LANG"/wikipedia_"$LANG"_"$DATE".tar.gz "$DESTDUMPDIR/$LANG"/*.idx "$DESTDUMPDIR/$LANG"/*.dat "$DESTDUMPDIR/$LANG/metadata.txt"
+        )
+
 	#rm -r "$DESTDUMPTEMPDIR/$LANG"
+        # XXX remove other files
 }
 
 
@@ -158,4 +180,5 @@ do
 	getSourceDumps $language
 	importLanguage $language
 	dumpWiki $language
+        packageDump $language
 done
