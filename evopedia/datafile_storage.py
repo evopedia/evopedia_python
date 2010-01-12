@@ -69,9 +69,9 @@ class DatafileStorage(object):
         self.data_files_schema = data_files_schema
         print("Converting image...")
 
-        (articles, redirects) = self.convert_articles(image_dir)
+        (articles, redirects) = self.convert_articles(image_dir, write=True)
         title_positions = self.generate_index(articles.items(),
-                                              redirects.items(), 50)
+                                              redirects.items(), 50, write=True)
         self.convert_coordinates(image_dir, 10, title_positions)
 
         print("Writing metadata file...")
@@ -329,7 +329,8 @@ class DatafileStorage(object):
             if titlefile is None:
                 f_titles.close()
 
-    def generate_index(self, articles, redirects, max_articles_per_prefix):
+    def generate_index(self, articles, redirects, max_articles_per_prefix,
+                       write=True):
         self.max_articles_per_prefix = max_articles_per_prefix
 
         print "Normalizing titles and redirects..."
@@ -350,7 +351,7 @@ class DatafileStorage(object):
 
         return title_positions
 
-    def write_titles_file(self):
+    def write_titles_file(self, write=True):
         title_positions = {}
 
         title_pos = 0
@@ -358,6 +359,9 @@ class DatafileStorage(object):
             title[2] = title_pos
             title_positions[title[0]] = title_pos
             title_pos += self.titleentry_encodedlen(title[0])
+
+        if not write:
+            return title_positions
 
         print("Resolving redirects and writing title index...")
 
@@ -408,7 +412,7 @@ class DatafileStorage(object):
         finally:
             datafile.close()
 
-    def convert_articles(self, image_dir):
+    def convert_articles(self, image_dir, write=True):
         import re
         endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
 
@@ -420,17 +424,19 @@ class DatafileStorage(object):
 
         print("Compressing articles...")
 
-        compressor = self.article_compressor_multi_bz2(
-                            datafiles_size, block_size)
-        (filenr, datafile_pos, block_pos) = compressor.next()
+        if write:
+            compressor = self.article_compressor_multi_bz2(
+                                datafiles_size, block_size)
+            (filenr, datafile_pos, block_pos) = compressor.next()
 
         for (dirpath, dirnames, filenames) in os.walk(image_dir):
             if 'coords' in dirnames:
                 dirnames.remove('coords')
+            print("%d files in dir %s" % (len(filenames), repr(dirpath)))
             for fname in filenames:
                 if fname in ('creation_date', 'evopedia_version',
                              'index.html'):
-                    break
+                    continue
                 title = fname.decode('utf-8')
                 title = endpattern.sub('', title).replace('_', ' ')
 
@@ -440,12 +446,16 @@ class DatafileStorage(object):
                                            os.readlink(f))).replace('_', ' ')
                     redirects[title] = destination.decode('utf-8')
                 else:
-                    with open(os.path.join(dirpath, fname), 'rb') as fd:
-                        fdata = fd.read()
-                    articles[title] = (filenr,
+                    if write:
+                        with open(os.path.join(dirpath, fname), 'rb') as fd:
+                            fdata = fd.read()
+                        articles[title] = (filenr,
                                         datafile_pos, block_pos, len(fdata))
-                    (filenr, datafile_pos, block_pos) = compressor.send(fdata)
-        compressor.close()
+                        (filenr, datafile_pos, block_pos) = compressor.send(fdata)
+                    else:
+                        articles[title] = (0, 0, 0, 0)
+        if write:
+            compressor.close()
 
         if __debug__:
             with open("article_list.txt", "wb") as articlelist:
@@ -478,6 +488,8 @@ class DatafileStorage(object):
                 title = name.decode('utf-8')
                 title = endpattern.sub('', title).replace('_', ' ')
                 if title not in title_positions:
+                    print("Title %s not found (referenced by coordinates)."
+                               % repr(title))
                     continue
                 else:
                     items += [(lat, lon, title_positions[title])]
@@ -492,7 +504,7 @@ class DatafileStorage(object):
     def get_quadtree_index_table(self, items,
                                  minlat, maxlat, minlon, maxlon,
                                  maxitems):
-        print("Entered %f %f %f %f." % (minlat, maxlat, minlon, maxlon))
+        #print("Entered %f %f %f %f." % (minlat, maxlat, minlon, maxlon))
         items = [(lat, lon, title_pos) for (lat, lon, title_pos) in items
                                   if minlat <= lat < maxlat and
                                      minlon <= lon < maxlon]
@@ -505,7 +517,7 @@ class DatafileStorage(object):
                 items = items[:0xffff - 1]
             data = struct.pack('<H', len(items))
             for (lat, lon, title_pos) in items:
-                print("Storing %f %f %d" % (lat, lon, title_pos))
+                #print("Storing %f %f %d" % (lat, lon, title_pos))
                 data += struct.pack('<ffI', lat, lon, title_pos)
             return data
         else:
