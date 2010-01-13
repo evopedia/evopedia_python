@@ -287,7 +287,11 @@ class DatafileStorage(object):
                 escapes |= 1 << i
             else:
                 escaped_pos += c
-        escapes |= 1 << 15 # ensure that escapes != '\n'
+        if escapes & 0xff == ord('\n'):
+            # escape lower byte
+            escapes &= 0xff00
+            escapes |= 1 << 14
+        escapes |= 1 << 15 # ensure that higher byte of escapes != '\n'
         return struct.pack('<H', escapes) + escaped_pos + \
                                 title.encode('utf-8') + '\n'
 
@@ -295,6 +299,8 @@ class DatafileStorage(object):
         """Decodes the position specification and title of an article as
         encoded by titleentry_encode."""
         (escapes,) = struct.unpack('<H', data[:2])
+        if escapes & (1 << 14) != 0:
+            escapes |= ord('\n')
         escaped_position = data[2:15]
         title = data[15:-1].decode('utf-8')
         position = ''
