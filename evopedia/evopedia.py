@@ -657,7 +657,7 @@ class TileRepo(object):
         self.tilepath = tilepath
         self.zoom_last = zoom_last
 
-        if tilepath is not None and not path.isdir(tilepath):
+        if tilepath is not None and not os.path.isdir(tilepath):
             self.tilepath = None
 
     def __str__(self):
@@ -754,7 +754,7 @@ class TileRepo(object):
                 repos = [TileRepo('OSM',
                     'http://tile.openstreetmap.org/%d/%d/%d.png',
                     None, False)]
-                return repos
+        return repos
 
 
 class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
