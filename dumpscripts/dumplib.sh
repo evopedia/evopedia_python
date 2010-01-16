@@ -78,9 +78,11 @@ importLanguage()
 	# remove the drop and recreate table (with potentially other engine) statements
 	) | mysql -u "$dbuser" --password=$password "$database"
 
+        WIKIUSERSETTINGS='$wgDBname = "'"$database"'"; $wgDBuser = "'"$dbuser"'"; $wgDBpassword = "'"$password"'";'
+
 	echo "Import done, changing mediawiki settings..."
 	(
-	cat "$MEDIAWIKIDIR/LocalSettings.in.php"
+	cat "$MEDIAWIKIDIR/LocalSettings.in.php" | sed -e 's/__WIKIUSERSETTINGS__/'"$WIKIUSERSETTINGS"'/'
 	echo '$wgLanguageCode = "'$LANG'";
 		$wgLocalFileRepo = array(
 		    "class" => "ForeignDBRepo",
@@ -141,7 +143,7 @@ packageDump()
 
         (
         cd "$DESTDUMPDIR/$LANG/"
-        $SCRIPTDIR/datafile_storage.py --convert "$DESTDUMPTEMPDIR/$LANG/" "$dumpdate" "$LANG" "http://$LANG.wikipedia.org/wiki/"
+        $LIBDIR/datafile_storage.py --convert "$DESTDUMPTEMPDIR/$LANG/" "$dumpdate" "$LANG" "http://$LANG.wikipedia.org/wiki/"
         tar czvf "$DESTDUMPDIR/$LANG"/wikipedia_"$LANG"_"$DATE".tar.gz "$DESTDUMPDIR/$LANG"/*.idx "$DESTDUMPDIR/$LANG"/*.dat "$DESTDUMPDIR/$LANG/metadata.txt"
         )
 
