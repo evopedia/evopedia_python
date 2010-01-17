@@ -56,6 +56,10 @@ class DatafileStorage(object):
         self.dump_language = parser.get('dump', 'language')
         self.dump_orig_url = parser.get('dump', 'orig_url')
         self.dump_version = parser.get('dump', 'version')
+        try:
+            self.num_articles = parser.get('dump', 'num_articles')
+        except:
+            self.num_articles = None
 
         self.titles_file_size = os.path.getsize(self.titles_file)
 
@@ -81,10 +85,14 @@ class DatafileStorage(object):
         config.set('dump', 'language', dump_language)
         config.set('dump', 'orig_url', dump_orig_url)
         config.set('dump', 'version', '3.0')
+        config.set('dump', 'num_articles', len(articles))
         with open(metadata_file, 'wb') as md_f:
             config.write(md_f)
 
     # --- storage interface ---
+    def get_num_articles(self):
+        return self.num_articles
+
     def get_datadir(self):
         return self.data_dir
 
@@ -187,10 +195,16 @@ class DatafileStorage(object):
     def get_metadata(dir):
         metadata_file = os.path.join(dir, 'metadata.txt')
         if not os.path.exists(metadata_file):
-            return (None, None)
+            return (None, None, None)
         parser = ConfigParser.RawConfigParser()
         parser.read(metadata_file)
-        return (parser.get('dump', 'date'), parser.get('dump', 'language'))
+        num_articles = None
+        try:
+            num_articles = parser.get('dump', 'num_articles')
+        except:
+            pass
+        return (parser.get('dump', 'date'), parser.get('dump', 'language'),
+                num_articles)
     # --- end of storage interface ---
 
     def titles_in_coords_int(self, coordf, filepos, titlesf,
@@ -419,9 +433,6 @@ class DatafileStorage(object):
             datafile.close()
 
     def convert_articles(self, image_dir, write=True):
-        import re
-        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
-
         datafiles_size = 500 * 1024 * 1024
         block_size = 512 * 1024
 
@@ -444,12 +455,10 @@ class DatafileStorage(object):
                              'index.html'):
                     continue
                 title = fname.decode('utf-8')
-                title = endpattern.sub('', title).replace('_', ' ')
 
                 f = os.path.join(dirpath, fname)
                 if os.path.islink(f):
-                    destination = endpattern.sub('', os.path.basename(
-                                           os.readlink(f))).replace('_', ' ')
+                    destination = os.path.basename(os.readlink(f))
                     redirects[title] = destination.decode('utf-8')
                 else:
                     if write:
@@ -477,8 +486,6 @@ class DatafileStorage(object):
 
     def convert_coordinates(self, image_dir, max_articles_per_section,
                             title_positions):
-        import re
-        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
         items = []
 
         print "Reading coordinates..."
@@ -492,7 +499,6 @@ class DatafileStorage(object):
                 lat = float(lat)
                 lon = float(lon)
                 title = name.decode('utf-8')
-                title = endpattern.sub('', title).replace('_', ' ')
                 if title not in title_positions:
                     print("Title %s not found (referenced by coordinates)."
                                % repr(title))
@@ -549,6 +555,8 @@ if __name__ == "__main__":
               "          --convert <dir> <date> <language> <orig url>\n"
               "              converts an evopedia 2.0 article image\n"
               "              mounted at <dir> to evopedia 3.0 format\n"
+              "          --searchgeo <minlat> <maxlat> <minlon> <maxlon>\n"
+              "              search for articles in geographical area\n"
               "          --article <text>\n"
               "              returns article with name <text>\n"
               "          <text>\n"
@@ -564,6 +572,13 @@ if __name__ == "__main__":
         elif sys.argv[1] == '--article':
             backend.storage_init_read('./')
             print backend.get_article_by_name(sys.argv[2].decode('utf-8'))
+        elif sys.argv[1] == '--searchgeo':
+            backend.storage_init_read('./')
+            (minlat, maxlat, minlon, maxlon) = (float(x) for x in sys.argv[2:6])
+            titles = backend.titles_in_coords((minlat, minlon),
+                                              (maxlat, maxlon))
+            for (title, lat, lon) in titles:
+                print "%s - %f, %f" % (title.encode('utf-8'), lat, lon)
         else:
             backend.storage_init_read('./')
             prefix = sys.argv[1].decode('utf-8')

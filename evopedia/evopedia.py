@@ -39,7 +39,9 @@ import urllib2
 import os
 import ConfigParser
 
-configfile = '~/.evopediarc'
+__all__ = ['EvopediaHandler', 'GPSHandler', 'GPSHandlerGypsy',
+        'GPSHandlerLiblocation', 'TileRepo', 'start_server']
+
 static_path = '/usr/lib/evopedia/static/'
 storage = None
 storage_class = None
@@ -51,9 +53,6 @@ try:
     math.atanh(0)
 except AttributeError:
     math.atanh = lambda x: .5 * (math.log(1 + x) - math.log(1 - x))
-
-endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
-
 
 class EvopediaHandler(BaseHTTPRequestHandler):
     TILESIZE = 256
@@ -128,7 +127,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 return '<list complete="0">' + text + '</list>'
             else:
                 title = saxutils.escape(title[0])
-                text += '<article name="%s" url="/wiki/%s" />' % (title, title)
+                name = title.replace('_', ' ')
+                text += '<article name="%s" url="/wiki/%s" />' % (name, title)
         return '<list complete="1">' + text + '</list>'
 
     def get_coords_in_article(self, text):
@@ -213,26 +213,23 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         mincoords = self.pixel2coords(zoom, (minx, maxy))
         maxcoords = self.pixel2coords(zoom, (maxx, miny))
 
-        try:
-            self.wfile.write('<articles>')
+        self.wfile.write('<articles>')
 
-            articlecount = 0
-            for (name, lat, lon) in storage.titles_in_coords(mincoords,
-                                                                 maxcoords):
-                (x, y) = self.coords2pixel(zoom, (lat, lon))
-                text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
-                        (saxutils.escape(name.encode('utf-8')), x, y,
-                        pathname2url('/wiki/' + name.encode('utf-8')))
-                self.wfile.write(text)
-                articlecount += 1
-                if articlecount > 100:
-                    self.wfile.write('<error>Zoom in for more articles.' +
-                                      '</error>')
-                    break
+        articlecount = 0
+        for (name, lat, lon) in storage.titles_in_coords(mincoords,
+                                                             maxcoords):
+            (x, y) = self.coords2pixel(zoom, (lat, lon))
+            text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
+                    (saxutils.escape(name.replace('_', ' ').encode('utf-8')), x, y,
+                    pathname2url('/wiki/' + name.encode('utf-8')))
+            self.wfile.write(text)
+            articlecount += 1
+            if articlecount > 100:
+                self.wfile.write('<error>Zoom in for more articles.' +
+                                  '</error>')
+                break
 
-            self.wfile.write('</articles>')
-        except IOError:
-            print("geo request cancelled by browser")
+        self.wfile.write('</articles>')
 
     def coords2pixel(self, zoom, coords):
         TILESIZE = self.TILESIZE
@@ -286,15 +283,21 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         (date, language) = (None, None)
         try:
-            (date, language) = storage_class.get_metadata(path)
+            (date, language, num_articles) = storage_class.get_metadata(path)
         except:
             import traceback
             traceback.print_exc()
             pass
+        if num_articles is not None:
+            num_articles = ', %s articles' % num_articles
+        else:
+            num_articles = ''
         if date is not None:
             self.wfile.write(('<a href=/set_data?path=%s>' +
-                    'Use this Wikipedia dump from %s, language: %s</a>') %
-                    (quote(path.encode('utf-8')), date, language))
+                    'Use this Wikipedia dump from ' +
+                    '%s, language: %s%s</a>') %
+                    (quote(path.encode('utf-8')), date,
+                     language, num_articles))
 
         self.wfile.write('<ul>')
         for f in ['..'] + sorted([d for d in os.listdir(path)
@@ -355,11 +358,18 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.write_header()
             with open(os.path.join(static_path, 'search.html')) as search:
                 data = search.read()
+                num_articles = storage.get_num_articles()
+                if num_articles is not None:
+                    num_articles = ', %s articles' % num_articles
+                else:
+                    num_articles = ''
                 data = data.replace("EVOPEDIA_INFO",
                             ('<a href="%s">Wikipedia</a>, ' +
-                                    '<a href="/choose_data">%s (%s)</a>') %
+                                    '<a href="/choose_data">%s (%s)%s</a>') %
                             (storage.get_orig_url(''),
-                                 storage.get_date(), storage.get_language()))
+                                 storage.get_date(),
+                                 storage.get_language(),
+                                 num_articles))
                 self.wfile.write(data)
             return
         elif parts[0] == 'static':
@@ -367,7 +377,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     'mapclient.js', 'zoomin.png',
                     'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
-                    'crosshairs.png']):
+                    'crosshairs.png', 'exit.png']):
                 if parts[1].endswith('.png'):
                     self.write_header('image/png')
                 elif parts[1].endswith('.css'):
@@ -485,18 +495,17 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.send_header('Location', '/')
             self.end_headers()
             return
-        elif parts[0] in ('wiki', 'articles'):
+        elif parts[0] == 'wiki':
             if not storage.is_readable():
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
                 return
-            if parts[0] == 'articles':
-                # compatibility for squashfs-style links in datafile storage
-                url = endpattern.sub('', parts[-1]).replace('_', ' ')
-            else:
-                url = '/'.join(parts[1:])
+            url = '/'.join(parts[1:])
             self.output_wiki_page(url)
             return
+        elif parts[0] == 'exit':
+            self.server.shutdown()
+
 
         self.output_error_page()
 
@@ -761,11 +770,13 @@ class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
-def main(configfile):
+def start_server():
     import sys
     import os
 
     global config
+
+    configfile = '~/.evopediarc'
 
     configfile_expanded = os.path.expanduser(configfile)
 
@@ -818,13 +829,10 @@ def main(configfile):
         import traceback
         traceback.print_exc()
 
+    server = ThreadingHTTPServer((address, port), EvopediaHandler)
     try:
-        server = ThreadingHTTPServer((address, port), EvopediaHandler)
         server.serve_forever()
     except KeyboardInterrupt:
         print '^C received, shutting down server'
         server.socket.close()
         sys.exit(0)
-
-if __name__ == '__main__':
-    main(configfile)
