@@ -235,7 +235,6 @@ class DumpHTML {
 			return;
 		}
 		$this->doArticles();
-		# XXX check if this is double work
 		$this->doCategories();
 		# XXX check if this is double work
 		$this->doRedirects();
@@ -280,8 +279,8 @@ class DumpHTML {
 
 		$this->setupGlobals();
 
-		$mainPageObj = Title::newMainPage();
-		$mainPage = $mainPageObj->getPrefixedDBkey();
+		//$mainPageObj = Title::newMainPage();
+		//$mainPage = $mainPageObj->getPrefixedDBkey();
 
 		for ( $id = $start, $i = 0; $id <= $end; $id += $this->sliceDenominator, $i++ ) {
 			wfWaitForSlaves( 20 );
@@ -297,9 +296,11 @@ class DumpHTML {
 				$ns = $title->getNamespace() ;
 				#if ( $ns != NS_CATEGORY && $ns != NS_MEDIAWIKI && 
 				#  $title->getPrefixedDBkey() != $mainPage ) {
-				if ( $ns == NS_MAIN && $title->getPrefixedDBkey() != $mainPage ) {
+				if ( $ns == NS_MAIN ) {
 					$this->doArticle( $title );
-				}
+				} else if ( $this->showTitles ) {
+                                    print "Not done: " . $title->getPrefixedDBkey() . "\n";
+                                }
 			}
 		}
 		$this->setCheckpoint( 'article', 'done' );
@@ -307,7 +308,7 @@ class DumpHTML {
 	}
 
 	function doSpecials() {
-		$this->doMainPage();
+		//$this->doMainPage();
 
 		$this->setupGlobals();
 		print "Special:Categories...";
@@ -315,7 +316,8 @@ class DumpHTML {
 		print "\n";
 	}
 
-	/** Write the main page as index.html */
+        /** Write the main page as index.html */
+        /*
 	function doMainPage() {
 
 		print "Making index.html  ";
@@ -326,8 +328,8 @@ class DumpHTML {
 		$title = Title::newMainPage();
                 $text = $this->getArticleHTML( $title );
                 if (is_array($text)) {
-                    /* secret code for redirects */
-                    /* XXX not the correct solution for the main page... */
+                    // secret code for redirects
+                    // XXX not the correct solution for the main page...
                     $text = $text[0];
                 }
 		
@@ -343,7 +345,8 @@ class DumpHTML {
 		fwrite( $file, $text );
 		fclose( $file );
 		print "\n";
-	}
+        }
+         */
 
 	function doImageDescriptions() {
 		$this->doLocalImageDescriptions();
@@ -578,7 +581,7 @@ class DumpHTML {
 
 		$this->profile();
 
-		$this->rawPages = array();
+		#$this->rawPages = array();
 		$text = $this->getArticleHTML( $title );
 
 		if ( $text === false ) {
@@ -592,7 +595,8 @@ class DumpHTML {
 		# Write to file
 		$this->writeArticle( $title, $text );
 
-		# Do raw pages
+                # Do raw pages
+                /*
 		$this->mkdir( "{$this->dest}/raw", 0755 );
 		foreach( $this->rawPages as $record ) {
 			list( $file, $title, $params ) = $record;
@@ -613,7 +617,7 @@ class DumpHTML {
 				fwrite( $file, $text );
 				fclose( $file );
 			}
-		}
+                }*/
 
 		wfIncrStats( 'dumphtml_article' );
 	}
@@ -635,7 +639,7 @@ class DumpHTML {
 		return array($lat, $lon);
 	}
 
-	function extractAndSaveCoordinates( $text, $destfile) {
+	function extractAndSaveCoordinates( $text, $filename) {
 		$coords = false;
 		if (preg_match('/params=(\d*)_(\d*)_([0-9.]*)_(N|S)_(\d*)_(\d*)_([0-9.]*)_(E|W)/i',
 					$text, $matches)) {
@@ -646,19 +650,10 @@ class DumpHTML {
 		if ($coords === false) return;
 
 		list($lat1, $lat2) = explode(".", sprintf("%012.7f", $coords[0]));
-		list($lon1, $lon2) = explode(".", sprintf("%012.7f", $coords[1]));
-		#$path = "articles/coords/" . substr($lat1, 0, -1) . "/" . substr($lon1, 0, -1) . "/" .
-		#	substr($lat1, -1) . "/" . substr($lon1, -1) . "/" .
-		#	$lat2[0] . "/" . $lon2[0] . "/" .
-		#	$lat2[1] . "/" . $lon2[1] . "/";
-		$path = "coords";
-		$linkname = sprintf("%f,%f,%s", $coords[0], $coords[1], basename($destfile));
+                list($lon1, $lon2) = explode(".", sprintf("%012.7f", $coords[1]));
 
-		if ( !$this->mkdir( $this->dest . "/" . $path ) ) {
-			print "Error: unable to create directory '" . $this->dest . "/" . $path . "'.\n";
-		}
-		#symlink("../../../../../../../../../../" . $destfile, $this->dest . "/" . $path . "/" . $linkname);
-		symlink($destfile, $this->dest . "/" . $path . "/" . $linkname);
+		$linkname = sprintf("%f,%f,%s", $coords[0], $coords[1], $filename);
+		symlink('../' . $filename, $this->dest . "/coords/" . $linkname);
 	}
 
 	/** Write the given text to the file identified by the given title object */
@@ -685,10 +680,10 @@ class DumpHTML {
                 if (is_array($text)) {
                         /* secret code for redirects */
                         $redir = $text[0];
-                        if ( !$this->mkdir( $fullDir ) ) {
-                                print "Error: unable to create directory '$fullDir'.\n";
-			}
-			if (is_link($fullName)) unlink($fullName);
+                        #if ( !$this->mkdir( $fullDir ) ) {
+                        #        print "Error: unable to create directory '$fullDir'.\n";
+                        #}
+                        if (is_link($fullName)) unlink($fullName);
                         $success = symlink($redir, $fullName);
 		} else {
 			$newpp = strrpos($text, "NewPP limit report");
@@ -705,7 +700,7 @@ class DumpHTML {
                                 $text = gzencode( $text, 9 );				
                         }
 
-                        if ( preg_match( '/[\x80-\xFF]/', $fullName ) && wfIsWindows() ) {
+                        /*if ( preg_match( '/[\x80-\xFF]/', $fullName ) && wfIsWindows() ) {
                                 # Work around PHP unicode bug
                                 $rand = mt_rand( 0, 99999999 );
                                 $fullDir = str_replace( '/', '\\', $fullDir );
@@ -719,10 +714,10 @@ class DumpHTML {
                                                 $this->escapeForVBScript( $tempName ),
                                                 $this->escapeForVBScript( $fullName ) ) );
                                 }
-                        } else {
-                                if ( !$this->mkdir( $fullDir ) ) {
-                                        print "Error: unable to create directory '$fullDir'.\n";
-                                }
+                        } else */{
+                                #if ( !$this->mkdir( $fullDir ) ) {
+                                #        print "Error: unable to create directory '$fullDir'.\n";
+                                #}
                                 #wfSuppressWarnings();
                                 $success = file_put_contents( $fullName, $text );
                                 #wfRestoreWarnings();
@@ -734,7 +729,7 @@ class DumpHTML {
                 }
 
 		if ( !$success ) {
-			die("Can't open file '$fullName' for writing.\nCheck permissions or use another destination (-d).\n");
+			print("\nWarning: Error for file '$fullName'.\n");
 		}
 		wfProfileOut( __METHOD__ );
 	}
@@ -754,7 +749,8 @@ class DumpHTML {
 		return $out;
 	}
 
-	/** Copy a directory recursively, not including .svn */
+        /** Copy a directory recursively, not including .svn */
+        /*
 	function copyDirectory( $source, $dest ) {
 		if ( !is_dir( $dest ) ) {
 			if ( !mkdir( $dest ) ) {
@@ -780,26 +776,31 @@ class DumpHTML {
 			}
 		}
 		return true;
-	}
+        }*/
 
-	/** Set up the destination directory */
+        /** Set up the destination directory */
 	function setupDestDir() {
 		global $IP;
 
-		if ( is_dir( $this->dest ) ) {
+		if ( is_dir( $this->dest . "/coords/" ) ) {
 			echo "WARNING: destination directory already exists, skipping initialisation\n";
 			return;
 		}
 		echo "Initialising destination directory...\n";
+		if ( !$this->mkdir( "{$this->dest}/coords/" ) ) {
+			throw new MWException( "Unable to create destination directory." );
+                }
+                /*
 		if ( !$this->mkdir( "{$this->dest}/skins" ) ) {
 			throw new MWException( "Unable to create destination directory." );
-		}
+                }
 
 		file_put_contents( "{$this->dest}/dumpHTML.version", self::VERSION );
 		$this->copyDirectory( "$IP/skins/monobook", "{$this->dest}/skins/monobook" );
 		$this->copyDirectory( "$IP/skins/common", "{$this->dest}/skins/common" );
-		$this->copyDirectory( "{$this->extdir}/skin", "{$this->dest}/skins/offline" );
-	}
+                $this->copyDirectory( "{$this->extdir}/skin", "{$this->dest}/skins/offline" );
+                 */
+        }
 
 	/** Create a file repo group which is a proxy of an old one */
 	function newRepoGroup( $old ) {
@@ -818,7 +819,7 @@ class DumpHTML {
 
 		if ( !$this->setupDone ) {
 			$wgHooks['GetLocalURL'][] =& $this;
-			$wgHooks['GetFullURL'][] =& $this;
+			#$wgHooks['GetFullURL'][] =& $this;
 			$wgHooks['SiteNoticeBefore'][] =& $this;
 			$wgHooks['SiteNoticeAfter'][] =& $this;
 			$this->oldArticlePath = $wgServer . $wgArticlePath;
@@ -876,10 +877,10 @@ class DumpHTML {
 			$this->destUploadUrl = "/{$this->imageRel}";
 		}
 		$wgUploadPath = $this->destUploadUrl; // For BC
-		$wgMaxCredits = -1;
+		$wgMaxCredits = 0;
 		$wgHideInterlanguageLinks = !$this->interwiki;
 		$wgThumbnailScriptPath = false;
-		$wgEnableParserCache = false;
+                $wgEnableParserCache = false;
 		$wgMathPath = "$wgScriptPath/math";
 		$wgEnableSidebarCache = false;
 		$wgGenerateThumbnailOnParse = false;
@@ -920,7 +921,8 @@ class DumpHTML {
 		#$newRepoGroup = $this->newRepoGroup( $this->oldRepoGroup );
 		#RepoGroup::setSingleton( $newRepoGroup );
 
-		# Make a snapshot of the logo image and copyright icon
+                # Make a snapshot of the logo image and copyright icon
+                /*
 		$wgLogo = $this->makeUrlSnapshot( $this->oldLogo );
 		if ( preg_match( '/<img [^>]*src="([^"]*)"/', $this->oldCopyrightIcon, $m ) ) {
 			$urlText = $m[1];
@@ -930,14 +932,16 @@ class DumpHTML {
 		}
 
 		# Make a snapshot of the favicon
-		$wgFavicon = $this->makeUrlSnapshot( $this->oldFavicon );
+                $wgFavicon = $this->makeUrlSnapshot( $this->oldFavicon );
+                 */
 
 		$this->setupDone = true;
 	}
 
 	/**
 	 * Make a copy of a URL in the destination directory, and return the new relative URL
-	 */
+         */
+        /*
 	function makeUrlSnapshot( $url ) {
 		global $wgServer;
 		$this->mkdir( "{$this->dest}/misc" );
@@ -951,7 +955,8 @@ class DumpHTML {
 			file_put_contents( $destPath, $contents );
 		}
 		return "{$this->articleBaseUrl}/misc/" . urlencode( $destName );
-	}
+        }
+        */
 
 	/** Reads the content of a title object, executes the skin and captures the result */
 	function getArticleHTML( $title ) {
@@ -1122,7 +1127,7 @@ ENDTEXT;*/
 			}
 		}
 	}
-
+/*
 	function onGetFullURL( &$title, &$url, $query ) {
 		global $wgContLang, $wgArticlePath;
 
@@ -1140,7 +1145,7 @@ ENDTEXT;*/
 			return true;
 		}
 	}
-
+ */
 	function onGetLocalURL( &$title, &$url, $query ) {
 		global $wgArticlePath;
 
@@ -1185,10 +1190,12 @@ ENDTEXT;*/
 			$dbkey = $title->getPrefixedDBkey();
 		}
 
+                /*
 		$mainPage = Title::newMainPage();
 		if ( $mainPage->getPrefixedDBkey() == $dbkey ) {
 			return 'index.html';
-		}
+                }
+                 */
 
 		#return 'articles/' . $this->getHashedDirectory( $title ) . '/' .
 		#	$this->getFriendlyName( $dbkey ) . '.html';
@@ -1214,7 +1221,7 @@ ENDTEXT;*/
 		#}
 		# Handle colon specially by replacing it with tilde
 		# Thus we reduce the number of paths with hashes appended
-		$friendlyName = str_replace( ':', '~', $friendlyName );
+		#$friendlyName = str_replace( ':', '~', $friendlyName );
 
 		return $friendlyName;
 	}
