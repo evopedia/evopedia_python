@@ -13,6 +13,7 @@ getSourceDumps()
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-pages-articles.xml.bz2" -O "$DESTDIR/wiki-latest-pages-articles.xml.bz2" || exit 1
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-image.sql.gz" -O "$DESTDIR/wiki-latest-image.sql.gz" || exit 1
 	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-category.sql.gz" -O "$DESTDIR/wiki-latest-category.sql.gz" || exit 1
+	wget -nv "http://download.wikimedia.org/""$LANG""wiki/""$DATE""/""$LANG""wiki-""$DATE""-categorylinks.sql.gz" -O "$DESTDIR/wiki-latest-categorylinks.sql.gz" || exit 1
 }
 
 
@@ -62,7 +63,7 @@ importLanguage()
 
 	gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-image.sql.gz" | \
 	awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
-	# remove the drop and recreate table (with potentially other engine) statements
+	# remove the drop and recreate table (with potentially different engine) statements
 
 	if [ x"$PREFIX" != x ]
 	then
@@ -75,7 +76,12 @@ importLanguage()
 	(
 	gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-category.sql.gz" | \
 	awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
-	# remove the drop and recreate table (with potentially other engine) statements
+	# remove the drop and recreate table (with potentially different engine) statements
+	) | mysql -u "$dbuser" --password=$password "$database"
+	(
+	gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-categorylinks.sql.gz" | \
+	awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
+	# remove the drop and recreate table (with potentially different engine) statements
 	) | mysql -u "$dbuser" --password=$password "$database"
 
         WIKIUSERSETTINGS='$wgDBname = "'"$database"'"; $wgDBuser = "'"$dbuser"'"; $wgDBpassword = "'"$password"'";'
@@ -102,9 +108,6 @@ importLanguage()
 		    "fetchDescription" => false
 		);'
 	) > "$MEDIAWIKIDIR/LocalSettings.php"
-	#echo "Populating some tables..."
-	#php "$MEDIAWIKIDIR/maintenance/refreshLinks.php"
-	#php "$MEDIAWIKIDIR/maintenance/populateCategory.php"
 	echo "done."
 
 }
@@ -129,22 +132,14 @@ packageDump()
 {
 	LANG="$1"
 
-        rm -r "$DESTDUMPTEMPDIR/$LANG/raw"
-        rm -r "$DESTDUMPTEMPDIR/$LANG/misc"
-        #rm -r "$DESTDUMPTEMPDIR/$LANG/skins"
-        #rm -r "$DESTDUMPTEMPDIR/$LANG/dumpHTML.version"
-        #rm -r "$DESTDUMPTEMPDIR/$LANG/index.html"
-        # XXX localize that
-        #cp "$DESTDUMPTEMPDIR/$LANG/index.html" "$DESTDUMPTEMPDIR/$LANG/Hauptseite"
-
 	dumpdate=`cat "$SOURCEDUMPDIR/$LANG/info.rss" | \
-        grep '<title>http://download.wikimedia.org/dewiki/' | \
-        sed -e 's/.*download.wikimedia.org\/dewiki\/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)<\/title>.*/\1-\2-\3/'`
+        grep '<title>http://download.wikimedia.org/' | \
+        sed -e 's/.*download.wikimedia.org\/.*\/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)<\/title>.*/\1-\2-\3/'`
 
         (
         cd "$DESTDUMPDIR/$LANG/"
         $LIBDIR/datafile_storage.py --convert "$DESTDUMPTEMPDIR/$LANG/" "$dumpdate" "$LANG" "http://$LANG.wikipedia.org/wiki/"
-        tar czvf "$DESTDUMPDIR/$LANG"/wikipedia_"$LANG"_"$DATE".tar.gz "$DESTDUMPDIR/$LANG"/*.idx "$DESTDUMPDIR/$LANG"/*.dat "$DESTDUMPDIR/$LANG/metadata.txt"
+        zip -1 wikipedia_"$LANG"_"$dumpdate".zip *.idx *.dat metadata.txt
         )
 
 	#rm -r "$DESTDUMPTEMPDIR/$LANG"
