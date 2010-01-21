@@ -126,6 +126,10 @@ $wgGenerateThumbnailOnParse = false;
 
 $wgDefaultUserOptions = array('math' => 4);
 
+$wgUseTidy = true;
+$wgTidyBin = '/usr/bin/tidy';
+$wgTidyConf = $IP.'/extensions/tidy/tidy.conf';
+
 require( "extensions/ParserFunctions/ParserFunctions.php");
 require( "extensions/ImageMap/ImageMap.php");
 require( "extensions/Cite/Cite.php");
