@@ -24,8 +24,8 @@ createTables()
 {
         PREFIX="$1"
         echo "(Re-)creating db tables for prefix \"$PREFIX""\"."
-        cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u "$dbuser" --password=$password "$database"
-        cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql -u "$dbuser" --password=$password "$database"
+        cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
+        cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
 }
 
 
@@ -51,7 +51,7 @@ importLanguage()
                 echo "Importing table $x..."
                 DUMPFILE="$IMPORTTEMPDIR/$PREFIX""$x.txt"
                 [ x"$PREFIX" != x ] && mv "$IMPORTTEMPDIR/$x.txt" "$DUMPFILE"
-                mysqlimport -u "$dbuser" --password="$password" --local "$database" "$DUMPFILE"
+                mysqlimport "$MYSQL_OPTS" -u "$dbuser" --password="$password" --local "$database" "$DUMPFILE"
                 rm "$DUMPFILE"
         done
 
@@ -73,7 +73,7 @@ importLanguage()
                 echo "RENAME TABLE image TO $PREFIX""image;"
                 echo "RENAME TABLE image_switch_temp TO image;"
         fi
-        ) | mysql -u "$dbuser" --password=$password "$database"
+        ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
 
         if [ "$LANG" != commons ]
         then
@@ -82,13 +82,12 @@ importLanguage()
             gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-category.sql.gz" | \
             awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
             # remove the drop and recreate table (with potentially different engine) statements
-            ) | mysql -u "$dbuser" --password=$password "$database"
-            # XXX do not do that for commons
+            ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
             (
             gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-categorylinks.sql.gz" | \
             awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
             # remove the drop and recreate table (with potentially different engine) statements
-            ) | mysql -u "$dbuser" --password=$password "$database"
+            ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
 
             WIKIUSERSETTINGS='$wgDBname = "'"$database"'"; $wgDBuser = "'"$dbuser"'"; $wgDBpassword = "'"$password"'";'
 
@@ -121,17 +120,23 @@ importLanguage()
 dumpWiki()
 {
         LANG="$1"
+        SLICENUMBER="$2"
 
         rm -r "$DESTDUMPTEMPDIR/$LANG" 2>/dev/null
         mkdir "$DESTDUMPTEMPDIR/$LANG"
         mkdir "$DESTDUMPDIR/$LANG"
         #php "$MEDIAWIKIDIR/extensions/DumpHTML/dumpHTML.php" --checkpoint "/tmp/dump_checkpoint_$LANG" -d "$DESTDUMPTEMPDIR/$LANG"
         slices=40
-        for i in `seq 1 $slices`
-        do
+        if [ -n "$SLICENUMBER" ]
+        then
+            php "$MEDIAWIKIDIR/extensions/DumpHTML/dumpHTML.php" -d "$DESTDUMPTEMPDIR/$LANG" --slice $SLICENUMBER/$slices
+        else
+            for i in `seq 1 $slices`
+            do
                 echo "Doing slice $i of $slices"
                 php "$MEDIAWIKIDIR/extensions/DumpHTML/dumpHTML.php" -d "$DESTDUMPTEMPDIR/$LANG" --slice $i/$slices
-        done
+            done
+        fi
 }
 
 packageDump()

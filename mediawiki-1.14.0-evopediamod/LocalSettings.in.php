@@ -133,6 +133,9 @@ $wgTidyConf = $IP.'/extensions/tidy/tidy.conf';
 require( "extensions/ParserFunctions/ParserFunctions.php");
 require( "extensions/ImageMap/ImageMap.php");
 require( "extensions/Cite/Cite.php");
+
+require( "extensions/SyntaxHighlight_GeSHi/SyntaxHighlight_GeSHi.php");
+
 #$wgForeignFileRepos[] = array(
 #   'class'                   => 'ForeignAPIRepo',
 #   'name'                    => 'shared',

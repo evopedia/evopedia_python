@@ -4,6 +4,7 @@
 dbuser=USER
 password=PASSWORD
 database=wikidb
+MYSQL_OPTS=""
 
 # directory where the git repository is checked out
 REPODIR="/home/user/evopedia/"
@@ -17,7 +18,9 @@ SOURCEDUMPDIR="$DUMPDIR/source_dumps"
 IMPORTTEMPDIR="$DUMPDIR/import_temp"
 DESTDUMPTEMPDIR="$DUMPDIR/dumps_temp"
 DESTDUMPDIR="$DUMPDIR/dumps"
-# also see the end of this script
+
+# use this for distributed dump generation
+SLICENUMBER=$1
 
 . "$SCRIPTDIR/dumplib.sh"
 
@@ -33,6 +36,9 @@ for language in de # you can put more languages here
 do
 	getSourceDumps $language
 	importLanguage $language
-	dumpWiki $language
-        packageDump $language
+	dumpWiki $language "$SLICENUMBER"
+        if [ ! -n "$SLICENUMBER" ]
+        then
+            packageDump $language
+        fi
 done
