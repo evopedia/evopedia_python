@@ -51,7 +51,7 @@ importLanguage()
                 echo "Importing table $x..."
                 DUMPFILE="$IMPORTTEMPDIR/$PREFIX""$x.txt"
                 [ x"$PREFIX" != x ] && mv "$IMPORTTEMPDIR/$x.txt" "$DUMPFILE"
-                mysqlimport "$MYSQL_OPTS" -u "$dbuser" --password="$password" --local "$database" "$DUMPFILE"
+                mysqlimport "$MYSQL_OPTS" -u "$dbuser" --password="$password" "$database" "$DUMPFILE"
                 rm "$DUMPFILE"
         done
 
