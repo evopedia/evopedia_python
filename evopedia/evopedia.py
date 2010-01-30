@@ -47,7 +47,7 @@ configfile = '~/.evopediarc'
 config = None
 storage = None
 storage_class = None
-tangogps_tilerepos = None
+tile_repository = None
 gps_handler = None
 
 try:
@@ -68,7 +68,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         if text is None:
             self.output_error_page()
         else:
-            self.write_header()
+            self.write_header(expires=True)
             with open(os.path.join(static_path, 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
             (lat, lon, zoom) = self.get_coords_in_article(text)
@@ -234,7 +234,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'mapheader.html')) as head:
             shutil.copyfileobj(head, self.wfile)
 
-        global tangogps_tilerepos
+        global tile_repository
 
         (tx, ty) = self.coords2pixel(zoom, coords)
 
@@ -242,7 +242,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         #     but we'll see.
         text = (u'<script type="text/javascript">' +
                 u'var map = new MapHandler(%d, %f, %f, %s);</script>' %
-                (zoom, tx, ty, repr([x.title for x in tangogps_tilerepos])))
+                (zoom, tx, ty, repr([x.title for x in tile_repository])))
 
         self.wfile.write(text.encode('utf-8'))
 
@@ -361,13 +361,19 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
-    def write_header(self, content_type='text/html', charset='UTF-8'):
+    def write_header(self, content_type='text/html', charset='UTF-8',
+                        expires=False):
         self.send_response(200)
         if charset is not None:
             charset = '; charset=' + charset
         else:
             charset = ''
         self.send_header('Content-type', content_type + charset)
+        if expires:
+            exp_time = time.time() + 3600 * 24
+            self.send_header('Expires',
+                time.strftime("%a, %d %b %Y %H:%M:%S +0000",
+                    time.gmtime(exp_time)))
         self.end_headers()
 
     def decode(self, s):
@@ -426,13 +432,13 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
                     'crosshairs.png', 'exit.png']):
                 if parts[1].endswith('.png'):
-                    self.write_header('image/png')
+                    self.write_header('image/png', expires=True)
                 elif parts[1].endswith('.css'):
-                    self.write_header('text/css')
+                    self.write_header('text/css', expires=True)
                 elif parts[1].endswith('.js'):
-                    self.write_header('application/javascript')
+                    self.write_header('application/javascript', expires=True)
                 else:
-                    self.write_header()
+                    self.write_header(expires=True)
                 with open(os.path.join(static_path, parts[1])) as fobj:
                     shutil.copyfileobj(fobj, self.wfile)
                 return
@@ -462,8 +468,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             try:
                 (repoindex, z, x, y) = parts[1:5]
                 y = y.split('.')[0]
-                global tangogps_tilerepos
-                tangogps_tilerepos[int(repoindex)]\
+                global tile_repository
+                tile_repository[int(repoindex)]\
                         .output_map_tile(self, int(x), int(y), int(z))
             except Exception, e:
                 self.output_error_msg_page('Invalid URL')
@@ -553,8 +559,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.output_wiki_page(url)
             return
         elif parts[0] == 'exit':
-            self.server.shutdown()
-
+            # the following is not available before Python 2.6
+            try:
+                self.server.shutdown()
+            except AttributeError:
+                import sys
+                sys.exit(0)
 
         self.output_error_page()
 
@@ -715,9 +725,6 @@ class TileRepo(object):
         self.tilepath = tilepath
         self.zoom_last = zoom_last
 
-        if tilepath is not None and not os.path.isdir(tilepath):
-            self.tilepath = None
-
     def __str__(self):
         return u'Tile Repository "%s" (%s, %s)' % (self.title, self.tilepath,
                 self.tileurl)
@@ -732,8 +739,8 @@ class TileRepo(object):
             except OSError, URLError:
                 print("Downloading tile or saving of downloaded" +
                         "tile could have failed.")
-                if self.get_local_tile(request_handler, x, y, zoom):
-                    return
+            if self.get_local_tile(request_handler, x, y, zoom):
+                return
 
         # no local repository or error in it
         self.redirect_to_remote_tile(request_handler, x, y, zoom)
@@ -748,10 +755,10 @@ class TileRepo(object):
             return False
         # some special remote tile handlers copied from the tangogps source
         if self.tileurl in ('maps-for-free', 'openaerial'):
-            request_handler.write_header(content_type='image/jpeg')
+            request_handler.write_header(content_type='image/jpeg', expires=True)
         else:
-            request_handler.write_header(content_type='image/png')
-            request_handler.wfile.write(image)
+            request_handler.write_header(content_type='image/png', expires=True)
+        request_handler.wfile.write(image)
         return True
 
     def get_remote_tile_url(self, x, y, zoom):
@@ -792,7 +799,7 @@ class TileRepo(object):
         print("Fetching %s..." % url)
         f = urllib2.urlopen(url)
         request_handler.write_header(f.info().get('Content-type'),
-                                     charset=None)
+                                     charset=None, expires=True)
         shutil.copyfileobj(f, request_handler.wfile)
 
     @staticmethod
@@ -819,9 +826,34 @@ class ThreadingHTTPServer(SocketServer.ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
+def get_default_repositories():
+    import os
+
+    maep_path = '/home/user/MyDocs/.maps/'
+
+    if os.path.exists(maep_path):
+        # maep is installed, use its repository
+        # XXX make the repostrings as flexible as maep's (using mapping keys)
+        return ('[' +
+                'OpenStreetMap I|' +
+                    'http://tile.openstreetmap.org/%d/%d/%d.png|' +
+                    maep_path + '/OpenStreetMap I/|0,' +
+                'OpenStreetMap II|' +
+                    'http://tah.openstreetmap.org/Tiles/tile/%d/%d/%d.png|' +
+                    maep_path + '/OpenStreetMap II/|0,' +
+                'OpenCycleMap|' +
+                    'http://c.andy.sandbox.cloudmade.com/' +
+                                'tiles/cycle/%d/%d/%d.png|' +
+                    maep_path + '/OpenCycleMap/|0,' +
+                'Public Transport|' +
+                    'http://tile.xn--pnvkarte-m4a.de/tilegen/%d/%d/%d.png|' +
+                    maep_path + '/Public Transport/|0]')
+    else:
+        return ''
+
+
 def start_server():
     import sys
-    import os
 
     global config
     global configfile
@@ -832,11 +864,12 @@ def start_server():
         with open(configfile_expanded, 'wb') as c:
             # write minimal default config
             c.write("[evopedia]\n" +
-                    "version = 3.0\n" +
+                    "version = 0.3.0\n" +
                     "listen_address = 127.0.0.1\n" +
                     "port = 8080\n" +
                     "use_gps = yes\n" +
-                    "maptile_repositories = \n" +
+                    "maptile_repositories = " +
+                        get_default_repositories() + "\n" +
                     "data_directory = ~/\n")
 
     config = ConfigParser.RawConfigParser()
@@ -852,10 +885,10 @@ def start_server():
     if not os.path.exists(data_dir):
         print("Data directory %s not found." % data_dir)
 
-    global tangogps_tilerepos
-    tangogps_tilerepos = TileRepo.parse_tilerepos(repostring)
+    global tile_repository
+    tile_repository = TileRepo.parse_tilerepos(repostring)
     print "Using map tile repositories " + str([x.title
-                                            for x in tangogps_tilerepos])
+                                            for x in tile_repository])
 
     global gps_handler
     if use_gps == 'yes' or use_gps == '1':
