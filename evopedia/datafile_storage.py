@@ -97,7 +97,7 @@ class DatafileStorage(object):
         config.set('dump', 'date', dump_date)
         config.set('dump', 'language', dump_language)
         config.set('dump', 'orig_url', dump_orig_url)
-        config.set('dump', 'version', '3.0')
+        config.set('dump', 'version', '0.3')
         config.set('dump', 'num_articles', len(articles))
         config.add_section('coordinates')
 # XXX TODO make real use of this feature
@@ -122,7 +122,7 @@ class DatafileStorage(object):
         return self.dump_language
 
     def get_orig_url(self, title):
-        if self.dump_version == '2.0':
+        if self.dump_version == '0.2':
             title = self.transform_path_from_v2(title)
         return self.dump_orig_url + urllib.quote(title.encode('utf-8'))
 
@@ -132,7 +132,7 @@ class DatafileStorage(object):
         Returns the text of the article with the (exact) specified name or
         None if the article does not exist.
         """
-        if self.dump_version == '2.0':
+        if self.dump_version == '0.2':
             name = self.transform_path_from_v2(name)
         for (title, articlepos) in self.get_titles_with_prefix(name):
             if title == name:
