@@ -43,11 +43,12 @@ __all__ = ['EvopediaHandler', 'GPSHandler', 'GPSHandlerGypsy',
         'GPSHandlerLiblocation', 'TileRepo', 'start_server']
 
 static_path = '/usr/lib/evopedia/static/'
+configfile = '~/.evopediarc'
+config = None
 storage = None
 storage_class = None
 tangogps_tilerepos = None
 gps_handler = None
-config = None
 
 try:
     math.atanh(0)
@@ -256,7 +257,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
     def output_data_selector(self, parts, dict):
         self.write_header()
 
-        global config
         global storage
         global storage_class
         global static_path
@@ -337,7 +337,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         return s
 
     def do_GET(self):
-        global config
         global storage
         global static_path
 
@@ -347,6 +346,10 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.path, query = self.path[:i], self.path[i + 1:]
             if query:
                 dict = cgi.parse_qs(query)
+
+        if self.path.endswith('/skins/common/images/magnify-clip.png'):
+            # compatibility with older versions
+            self.path = '/static/magnify-clip.png'
 
         parts = [self.decode(unquote(i)) for i in self.path.split('/') if i]
 
@@ -374,7 +377,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             return
         elif parts[0] == 'static':
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
-                    'mapclient.js', 'zoomin.png',
+                    'magnify-clip.png', 'mapclient.js', 'zoomin.png',
                     'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
                     'random.png', 'map.png', 'maparticle.png', 'home.png',
                     'crosshairs.png', 'exit.png']):
@@ -488,6 +491,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             storage = DatafileStorage()
             storage.storage_init_read(data_dir)
             if storage.is_readable():
+                global config
+                global configfile
                 config.set('evopedia', 'data_directory', data_dir)
                 with open(os.path.expanduser(configfile), 'wb') as f:
                     config.write(f)
@@ -495,7 +500,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.send_header('Location', '/')
             self.end_headers()
             return
-        elif parts[0] == 'wiki':
+        elif parts[0] in ('wiki', 'articles'):
             if not storage.is_readable():
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
@@ -775,8 +780,7 @@ def start_server():
     import os
 
     global config
-
-    configfile = '~/.evopediarc'
+    global configfile
 
     configfile_expanded = os.path.expanduser(configfile)
 
@@ -824,6 +828,8 @@ def start_server():
         storage.storage_init_read(data_dir)
     except ConfigParser.NoSectionError:
         print("Error opening storage.")
+        import traceback
+        traceback.print_exc()
     except Exception:
         print("Error opening storage.")
         import traceback

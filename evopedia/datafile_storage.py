@@ -46,7 +46,6 @@ class DatafileStorage(object):
 
         self.data_dir = directory
         self.titles_file = os.path.join(directory, 'titles.idx')
-        self.coordinates_file = os.path.join(directory, 'coordinates.idx')
         self.data_files_schema = os.path.join(directory, 'wikipedia_%02d.dat')
 
         parser = ConfigParser.RawConfigParser()
@@ -61,9 +60,23 @@ class DatafileStorage(object):
         except:
             self.num_articles = None
 
+        self.initialize_coords(parser)
+
         self.titles_file_size = os.path.getsize(self.titles_file)
 
         self.readable = 1
+
+    def initialize_coords(self, parser):
+        coordfiles = []
+        i = 1
+        while True:
+            try:
+                file = parser.get('coordinates', 'file_%02d' % i)
+            except:
+                break
+            coordfiles += [os.path.join(self.data_dir, file)]
+            i += 1
+        self.coordinate_files = coordfiles
 
     def storage_create(self, image_dir, titles_file, coordinates_file,
                             data_files_schema, metadata_file,
@@ -86,6 +99,9 @@ class DatafileStorage(object):
         config.set('dump', 'orig_url', dump_orig_url)
         config.set('dump', 'version', '3.0')
         config.set('dump', 'num_articles', len(articles))
+        config.add_section('coordinates')
+# XXX TODO make real use of this feature
+        config.set('coordinates', 'file_01', 'coordinates.idx')
         with open(metadata_file, 'wb') as md_f:
             config.write(md_f)
 
@@ -106,6 +122,8 @@ class DatafileStorage(object):
         return self.dump_language
 
     def get_orig_url(self, title):
+        if self.dump_version == '2.0':
+            title = self.transform_path_from_v2(title)
         return self.dump_orig_url + urllib.quote(title.encode('utf-8'))
 
     def get_article_by_name(self, name):
@@ -114,6 +132,8 @@ class DatafileStorage(object):
         Returns the text of the article with the (exact) specified name or
         None if the article does not exist.
         """
+        if self.dump_version == '2.0':
+            name = self.transform_path_from_v2(name)
         for (title, articlepos) in self.get_titles_with_prefix(name):
             if title == name:
                 return self.get_article_by_pos(articlepos)
@@ -184,12 +204,13 @@ class DatafileStorage(object):
         The two edges of the rectangle are given in latitude, longitude order
         and the generator returns tuples (title, latitude, longitude, url).
         """
-        with open(self.coordinates_file, 'rb') as coordf:
-            with open(self.titles_file, 'rb') as titlesf:
-                for item in self.titles_in_coords_int(coordf, 0, titlesf,
-                                mincoords, maxcoords,
-                                -91.0, 91.0, -181.0, 181.0):
-                    yield item
+        for f in self.coordinate_files:
+            with open(f, 'rb') as coordf:
+                with open(self.titles_file, 'rb') as titlesf:
+                    for item in self.titles_in_coords_int(coordf, 0, titlesf,
+                                    mincoords, maxcoords,
+                                    -91.0, 91.0, -181.0, 181.0):
+                        yield item
 
     @staticmethod
     def get_metadata(dir):
@@ -206,6 +227,12 @@ class DatafileStorage(object):
         return (parser.get('dump', 'date'), parser.get('dump', 'language'),
                 num_articles)
     # --- end of storage interface ---
+
+    def transform_path_from_v2(self, pathname):
+        import re
+        title = pathname.split('/')[-1]
+        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
+        return endpattern.sub('', title)
 
     def titles_in_coords_int(self, coordf, filepos, titlesf,
                                mintarget, maxtarget,
@@ -436,6 +463,9 @@ class DatafileStorage(object):
         datafiles_size = 500 * 1024 * 1024
         block_size = 512 * 1024
 
+        import re
+        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
+
         articles = {}
         redirects = {}
 
@@ -455,11 +485,18 @@ class DatafileStorage(object):
                              'index.html'):
                     continue
                 title = fname.decode('utf-8')
+                if title.endswith('.html'):
+                    # old dump software
+                    title = endpattern.sub('', title)
 
                 f = os.path.join(dirpath, fname)
                 if os.path.islink(f):
                     destination = os.path.basename(os.readlink(f))
-                    redirects[title] = destination.decode('utf-8')
+                    destination = destination.decode('utf-8')
+                    if destination.endswith('.html'):
+                        destination = os.path.basename(destination)
+                        destination = endpattern.sub('', destination)
+                    redirects[title] = destination
                 else:
                     if write:
                         with open(os.path.join(dirpath, fname), 'rb') as fd:
@@ -486,19 +523,26 @@ class DatafileStorage(object):
 
     def convert_coordinates(self, image_dir, max_articles_per_section,
                             title_positions):
+        import re
+        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
         items = []
 
         print "Reading coordinates..."
-        for (dirpath, dirnames, filenames) in os.walk(
-                                        os.path.join(image_dir, 'coords')):
+        for (dirpath, dirnames, filenames) in os.walk(image_dir):
             for fname in filenames:
                 f = os.path.join(dirpath, fname)
                 if not os.path.islink(f):
                     continue
-                (lat, lon, name) = fname.split(',', 2)
-                lat = float(lat)
-                lon = float(lon)
-                title = name.decode('utf-8')
+                try:
+                    (lat, lon, name) = fname.split(',', 2)
+                    lat = float(lat)
+                    lon = float(lon)
+                except ValueError:
+                    continue
+                title = os.path.basename(os.readlink(f)).decode('utf-8')
+                if title.endswith('.html'):
+                    # old dump software
+                    title = endpattern.sub('', title)
                 if title not in title_positions:
                     print("Title %s not found (referenced by coordinates)."
                                % repr(title))
