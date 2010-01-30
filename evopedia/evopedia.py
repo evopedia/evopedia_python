@@ -349,8 +349,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             dir = os.path.join(path, f)
             if not os.path.isdir(dir):
                 continue
-            quotedpath = quote(dir.encode('utf-8'))
-            quotedname = saxutils.escape(f.encode('utf-8'))
+            quotedpath = quote(dir)
+            quotedname = saxutils.escape(f)
             if f == '..':
                 quotedname = 'parent directory'
             text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
