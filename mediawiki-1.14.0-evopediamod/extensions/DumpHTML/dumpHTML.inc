@@ -641,10 +641,10 @@ class DumpHTML {
 
 	function extractAndSaveCoordinates( $text, $filename) {
 		$coords = false;
-		if (preg_match('/params=(\d*)_(\d*)_([0-9.]*)_(N|S)_(\d*)_(\d*)_([0-9.]*)_(E|W)/i',
+		if (preg_match('/params=(\d*)_(\d*)_([0-9.]*)_?(N|S)_(\d*)_(\d*)_([0-9.]*)_?(E|W)/i',
 					$text, $matches)) {
 			$coords = $this->parseCoordinatesDMS($matches);
-		} elseif (preg_match('/params=(\d*\.\d*)_(N|S)_(\d*\.\d*)_(E|W)/i', $text, $matches)) {
+		} elseif (preg_match('/params=(\d*\.?\d*)_(N|S)_(\d*\.?\d*)_(E|W)/i', $text, $matches)) {
 			$coords = $this->parseCoordinatesDD($matches);
 		}
 		if ($coords === false) return;

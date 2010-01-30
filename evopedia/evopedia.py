@@ -71,12 +71,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.write_header()
             with open(os.path.join(static_path, 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
-            (lat, lon) = self.get_coords_in_article(text)
+            (lat, lon, zoom) = self.get_coords_in_article(text)
             if lat is not None and lon is not None:
                 self.wfile.write(('<a class="evopedianav" ' +
-                        'href="/map/?lat=%f&lon=%f&zoom=13">' +
+                        'href="/map/?lat=%f&lon=%f&zoom=%d">' +
                         '<img src="/static/maparticle.png"></a>') %
-                                 (lat, lon))
+                                 (lat, lon, zoom))
             self.wfile.write(('<a class="evopedianav" href="%s">' +
                     '<img src="/static/wikipedia.png"></a>') %
                     storage.get_orig_url(url))
@@ -133,23 +133,19 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         return '<list complete="1">' + text + '</list>'
 
     def get_coords_in_article(self, text):
-        lat = lng = None
+        lat = lng = zoom = None
 
-        m = re.search('params=(\d*)_(\d*)_([0-9.]*)_(N|S)'
-                      '_(\d*)_(\d*)_([0-9.]*)_(E|W)', text)
+        m = re.search('params=(\d*)_(\d*)_([0-9.]*)_?(N|S)'
+                      '_(\d*)_(\d*)_([0-9.]*)_?(E|W)([^"\']*)', text)
         if m:
             (lat, lng) = self.parse_coordinates_dms(m)
+            zoom = self.parse_coordinates_zoom(m.group(9))
         else:
-            m = re.search('params=(\d*\.\d*)_(N|S)_(\d*\.\d*)_(E|W)', text)
+            m = re.search('params=(\d*\.?\d*)_(N|S)_(\d*\.?\d*)_(E|W)([^"\']*)', text)
             if m:
                 (lat, lng) = self.parse_coordinates_dec(m)
-        return (lat, lng)
-
-    def splice_coords(self, coords):
-        (head, rest) = ('%012.7f' % coords).split('.')
-        head1 = head[:-1]
-        head2 = head[-1]
-        return [head[:-1], head[-1]] + list(rest[:1])
+                zoom = self.parse_coordinates_zoom(m.group(5))
+        return (lat, lng, zoom)
 
     def parse_coordinates_dec(self, match):
         try:
@@ -180,6 +176,54 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             return (lat, lon)
         except ValueError:
             return (None, None)
+
+    def parse_coordinates_zoom(self, zoomstr):
+        """Guess zoom value in zoomstr as defined in https://wiki.toolserver.org/view/GeoHack"""
+
+        default = 12
+        scale_by_type = {
+              'country':    10000000,
+              'satellite':  10000000,  
+              'state':       3000000,
+              'adm1st':      1000000,
+              'adm2nd':       300000,
+              'default':      300000,
+              'adm3rd':       100000,
+              'city':         100000,
+              'mountain':     100000,
+              'isle':         100000,
+              'river':        100000,
+              'waterbody':    100000,
+              'event':         50000,
+              'forest':        50000,
+              'glacier':       50000,
+              'airport':       30000,
+              'edu':           10000,
+              'pass':          10000,
+              'landmark':      10000,
+              'railwaystation':10000 }
+
+        m = re.search('_(scale|dim|type):(\d*)([a-z0-9]*)', zoomstr)
+        if not m:
+            return default
+        else:
+            try:
+                s = m.group(1)
+                if s == 'scale':
+                    scale = float(m.group(2))
+                elif s == 'dim':
+                    scale = 10 * float(m.group(2))
+                else:
+                    type = m.group(2) + m.group(3)
+                    try:
+                        scale = scale_by_type[type]
+                    except KeyError:
+                        return default
+
+                zoom = round(28.7253 - math.log(scale, 2))
+                return int(max(2, min(18, zoom)))
+            except ValueError:
+                return default
 
     def output_map(self, coords, zoom):
         global static_path
