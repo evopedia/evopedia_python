@@ -318,7 +318,9 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
         if not storage.is_readable():
-            self.wfile.write('<h2>Please download a Wikipedia dump, ' +
+            self.wfile.write('<h2>Please download a Wikipedia dump from ' +
+                        '<a href="http://wiki.maemo.org/Evopedia">' +
+                        'http://wiki.maemo.org/Evopedia</a>, ' +
                         'extract it to a folder on your device and ' +
                         'select this folder here.</h2>')
         else:
@@ -912,7 +914,14 @@ def start_server():
         import traceback
         traceback.print_exc()
 
-    server = ThreadingHTTPServer((address, port), EvopediaHandler)
+    import socket
+
+    try:
+        server = ThreadingHTTPServer((address, port), EvopediaHandler)
+    except socket.error:
+        print 'Socket error. Perhaps there is already some server ' + \
+                'running. Exiting.'
+        sys.exit(1)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
