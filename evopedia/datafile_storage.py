@@ -485,7 +485,7 @@ class DatafileStorage(object):
                              'index.html'):
                     continue
                 title = fname.decode('utf-8')
-                if title.endswith('.html'):
+                if title.endswith('.html') or title.endswith('.redir'):
                     # old dump software
                     title = endpattern.sub('', title)
 
@@ -496,6 +496,12 @@ class DatafileStorage(object):
                     if destination.endswith('.html'):
                         destination = os.path.basename(destination)
                         destination = endpattern.sub('', destination)
+                    redirects[title] = destination
+                elif fname.endswith('.redir'):
+                    with open(f) as ff:
+                        destination = ff.read().decode('utf-8')
+                    destination = os.path.basename(destination)
+                    destination = endpattern.sub('', destination)
                     redirects[title] = destination
                 else:
                     if write:
