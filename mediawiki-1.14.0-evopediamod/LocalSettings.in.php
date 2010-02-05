@@ -93,13 +93,14 @@ $wgShellLocale = "en_US.utf8";
 
 ## If you have the appropriate support software installed
 ## you can enable inline LaTeX equations:
-$wgUseTeX           = false;
+$wgUseTeX           = true;
+$wgTexvc = $IP . '/math/texvc';
 
 $wgLocalInterwiki   = strtolower( $wgSitename );
 $wgInterwikiMagic = true;
 $wgHideInterlanguageLinks = false;
 
-
+$wgReadOnly = "Database dump in progress.";
 
 $wgSecretKey = "87a0d23fbd99994a24257c12fda44200cfbb33c5d3dbb2d74fb4e38643f1e639";
 

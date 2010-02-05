@@ -723,9 +723,9 @@ class DumpHTML {
                                 #wfRestoreWarnings();
 			}
 
-			if ($success) {
-				$this->extractAndSaveCoordinates( $text, $filename );
-			}
+			#if ($success) {
+			#	$this->extractAndSaveCoordinates( $text, $filename );
+			#}
                 }
 
 		if ( !$success ) {
@@ -809,7 +809,7 @@ class DumpHTML {
 
 	/** Set up globals required for parsing */
 	function setupGlobals( $currentDepth = NULL ) {
-		global $wgUser, $wgStylePath, $wgArticlePath, $wgMathPath;
+		global $wgUser, $wgStylePath, $wgArticlePath, $wgMathPath, $wgMathDirectory;
 		global $wgUploadPath, $wgLogo, $wgMaxCredits, $wgScriptPath;
 		global $wgHideInterlanguageLinks, $wgUploadDirectory, $wgThumbnailScriptPath;
 		global $wgEnableParserCache, $wgHooks, $wgServer;
@@ -881,7 +881,8 @@ class DumpHTML {
 		$wgHideInterlanguageLinks = !$this->interwiki;
 		$wgThumbnailScriptPath = false;
                 $wgEnableParserCache = false;
-		$wgMathPath = "$wgScriptPath/math";
+                $wgMathPath = "math";
+                $wgMathDirectory = $this->dest . "/math/";
 		$wgEnableSidebarCache = false;
 		$wgGenerateThumbnailOnParse = false;
 		$wgDisableCounters = true;
