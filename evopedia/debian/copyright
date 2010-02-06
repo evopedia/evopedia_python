@@ -1,0 +1,36 @@
+This work was packaged for Debian by:
+
+    Adam Schmalhofer <Adam.Schmalhofer@gmx.de> on Tue, 10 Nov 2009 21:14:05 0100
+
+It was downloaded from http://github.com/crei/evopedia/tree/evopedia
+
+Upstream Author:
+
+    Christian Reitwießner <christian@reitwiessner.de>
+
+Copyright:
+
+    Copyright (C) 2009,2010 Christian Reitwiessner <christian@reitwiessner.de>
+
+License:
+
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 3 of the License, or (at your
+    option) any later version.
+    
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+    General Public License for more details.
+    
+    You should have received a copy of the GNU General Public
+    License along with this program; if not, see
+    <http://www.gnu.org/licenses/>.
+
+The Debian packaging is:
+
+    Copyright (C) 2009,2010 Adam Schmalhofer <Adam.Schmalhofer@gmx.de>
+
+and is licensed under the GPL version 3 or (at your option) any later version,
+see `/usr/share/common-licenses/GPL-3'.

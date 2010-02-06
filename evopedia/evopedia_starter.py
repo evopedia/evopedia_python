@@ -1,5 +1,5 @@
 #!/usr/bin/python
 
-import evopedia
+from evopedia import evopedia
 
 evopedia.start_server()
