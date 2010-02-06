@@ -78,18 +78,17 @@ class DatafileStorage(object):
             i += 1
         self.coordinate_files = coordfiles
 
-    def storage_create(self, image_dir, titles_file, coordinates_file,
+    def storage_create(self, image_dir, titles_file, coordinates_files_schema,
                             data_files_schema, metadata_file,
                             dump_date, dump_language, dump_orig_url):
         self.titles_file = titles_file
-        self.coordinates_file = coordinates_file
+        self.coordinates_files_schema = coordinates_files_schema
         self.data_files_schema = data_files_schema
         print("Converting image...")
 
-        (articles, redirects) = self.convert_articles(image_dir, write=True)
-        title_positions = self.generate_index(articles.items(),
-                                              redirects.items(), 50, write=True)
-        self.convert_coordinates(image_dir, 10, title_positions)
+        num_articles = self.convert_articles(image_dir, write=True)
+        self.generate_index(write=True)
+        coord_files = self.write_coordinates(10)
 
         print("Writing metadata file...")
         config = ConfigParser.RawConfigParser()
@@ -98,10 +97,10 @@ class DatafileStorage(object):
         config.set('dump', 'language', dump_language)
         config.set('dump', 'orig_url', dump_orig_url)
         config.set('dump', 'version', '0.3')
-        config.set('dump', 'num_articles', len(articles))
+        config.set('dump', 'num_articles', num_articles)
         config.add_section('coordinates')
-# XXX TODO make real use of this feature
-        config.set('coordinates', 'file_01', 'coordinates.idx')
+        for (i, file) in enumerate(coord_files):
+            config.set('coordinates', 'file_%02d' % (i + 1), file)
         with open(metadata_file, 'wb') as md_f:
             config.write(md_f)
 
@@ -316,6 +315,8 @@ class DatafileStorage(object):
 
         The resulting data will only contain a line break at the end and the
         encoded position specification will have constant size.
+
+        title must be utf-8 encoded.
         """
         (filenr, block_start, block_offset, article_len) = articlepos
         pos = struct.pack('<BIII', filenr, block_start,
@@ -333,8 +334,7 @@ class DatafileStorage(object):
             escapes &= 0xff00
             escapes |= 1 << 14
         escapes |= 1 << 15 # ensure that higher byte of escapes != '\n'
-        return struct.pack('<H', escapes) + escaped_pos + \
-                                title.encode('utf-8') + '\n'
+        return struct.pack('<H', escapes) + escaped_pos + title + '\n'
 
     def titleentry_decode(self, data):
         """Decodes the position specification and title of an article as
@@ -355,7 +355,7 @@ class DatafileStorage(object):
     def titleentry_encodedlen(self, title):
         """Returns the length of the position specification and title of an
         article as encoded by titleentry_encode."""
-        return struct.calcsize('<HBIII') + len(title.encode('utf-8')) + 1
+        return struct.calcsize('<HBIII') + len(title) + 1
 
     def title_at_offset(self, offset):
         with open(self.titles_file, 'rb') as f_titles:
@@ -375,57 +375,6 @@ class DatafileStorage(object):
         finally:
             if titlefile is None:
                 f_titles.close()
-
-    def generate_index(self, articles, redirects, max_articles_per_prefix,
-                       write=True):
-        self.max_articles_per_prefix = max_articles_per_prefix
-
-        print "Normalizing titles and redirects..."
-        # [title, normalized title, article position (or redirect signal and
-        # position), is redirect]
-        self.titles = [[title, evopediautils.normalize(title),
-                        None, article_pos, False]
-                        for (title, article_pos) in articles]
-        self.titles += [[title, evopediautils.normalize(title),
-                        None, destination, True]
-                        for (title, destination) in redirects]
-
-        print "Sorting titles and redirects..."
-        self.titles.sort(key=operator.itemgetter(1))
-
-        print "Writing titles index..."
-        title_positions = self.write_titles_file()
-
-        return title_positions
-
-    def write_titles_file(self, write=True):
-        title_positions = {}
-
-        title_pos = 0
-        for (i, title) in enumerate(self.titles):
-            title[2] = title_pos
-            title_positions[title[0]] = title_pos
-            title_pos += self.titleentry_encodedlen(title[0])
-
-        if not write:
-            return title_positions
-
-        print("Resolving redirects and writing title index...")
-
-        with open(self.titles_file, 'wb') as f_titles:
-            for title in self.titles:
-                if title[4]: # redirect
-                    try:
-                        dest_pos = title_positions[title[3]]
-                    except KeyError:
-                        dest_pos = 0xffffffff
-                    articlepos = (0xff, dest_pos, 0, 0)
-                else:
-                    articlepos = title[3]
-
-                data = self.titleentry_encode(articlepos, title[0])
-                f_titles.write(data)
-        return title_positions
 
     def article_compressor_multi_bz2(self, datafiles_size,
                                      block_size, level=9):
@@ -463,13 +412,20 @@ class DatafileStorage(object):
         datafiles_size = 500 * 1024 * 1024
         block_size = 512 * 1024
 
+        # speed optimization
+        parse_coords = evopediautils.parse_coordinates_in_article
+
         import re
         endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
 
-        articles = {}
-        redirects = {}
+        num_articles = 0
+
+        titles = []
 
         print("Compressing articles...")
+
+        # because of memory efficiency, all strings are utf-8 encoded and not
+        # unicode
 
         if write:
             compressor = self.article_compressor_multi_bz2(
@@ -484,7 +440,7 @@ class DatafileStorage(object):
                 if fname in ('creation_date', 'evopedia_version',
                              'index.html'):
                     continue
-                title = fname.decode('utf-8')
+                title = fname
                 if title.endswith('.html') or title.endswith('.redir'):
                     # old dump software
                     title = endpattern.sub('', title)
@@ -492,76 +448,120 @@ class DatafileStorage(object):
                 f = os.path.join(dirpath, fname)
                 if os.path.islink(f):
                     destination = os.path.basename(os.readlink(f))
-                    destination = destination.decode('utf-8')
+                    destination = destination
                     if destination.endswith('.html'):
                         destination = os.path.basename(destination)
                         destination = endpattern.sub('', destination)
-                    redirects[title] = destination
+                    titles += [[title, None, destination,
+                                (None, None, None)]]
                 elif fname.endswith('.redir'):
                     with open(f) as ff:
-                        destination = ff.read().decode('utf-8')
+                        destination = ff.read()
                     destination = os.path.basename(destination)
                     destination = endpattern.sub('', destination)
-                    redirects[title] = destination
+                    titles += [[title, None, destination,
+                                (None, None, None)]]
                 else:
+                    num_articles += 1
                     if write:
                         with open(os.path.join(dirpath, fname), 'rb') as fd:
                             fdata = fd.read()
-                        articles[title] = (filenr,
-                                        datafile_pos, block_pos, len(fdata))
+                        (lat, lng, zoom) = parse_coords(fdata)
+                        article_pos = (filenr, datafile_pos,
+                                        block_pos, len(fdata))
+                        titles += [[title, None, article_pos,
+                                        (lat, lng, zoom)]]
                         (filenr, datafile_pos, block_pos) = compressor.send(fdata)
                     else:
-                        articles[title] = (0, 0, 0, 0)
+                        titles += [[title, None, (0, 0, 0, 0),
+                                    (None, None, None)]]
         if write:
             compressor.close()
 
         if __debug__:
-            with open("article_list.txt", "wb") as articlelist:
-                for (title, article_pos) in articles.items():
-                    articlelist.write("%s\t%s\n" %
-                                (title.encode("utf-8"), article_pos))
+            with open("title_list.txt", "wb") as titlelist:
+                for t in titles:
+                    titlelist.write('\t'.join([repr(x) for x in t]) + '\n')
 
-            with open("redirect_list.txt", "wb") as redirectlist:
-                for (title, destination) in redirects.items():
-                    redirectlist.write("%s\t%s\n" % (title.encode("utf-8"),
-                                        destination.encode("utf-8")))
-        return (articles, redirects)
+        self.titles = titles
+        # format for titles:
+        # [title, pos in index, article pos (or redirect data),
+        #  coordinates]
 
-    def convert_coordinates(self, image_dir, max_articles_per_section,
-                            title_positions):
-        import re
-        endpattern = re.compile('(_[0-9a-f]{4})?(\.html(\.redir)?)?$')
-        items = []
+        return num_articles
 
-        print "Reading coordinates..."
-        for (dirpath, dirnames, filenames) in os.walk(image_dir):
-            for fname in filenames:
-                f = os.path.join(dirpath, fname)
-                if not os.path.islink(f):
-                    continue
-                try:
-                    (lat, lon, name) = fname.split(',', 2)
-                    lat = float(lat)
-                    lon = float(lon)
-                except ValueError:
-                    continue
-                title = os.path.basename(os.readlink(f)).decode('utf-8')
-                if title.endswith('.html'):
-                    # old dump software
-                    title = endpattern.sub('', title)
-                if title not in title_positions:
-                    print("Title %s not found (referenced by coordinates)."
-                               % repr(title))
-                    continue
+    def generate_index(self, write=True):
+        n = evopediautils.normalize # speed optimization
+        print "Sorting titles and redirects..."
+        self.titles.sort(key=lambda x: n(x[0].decode('utf-8')))
+
+        # format for titles:
+        # [title, pos in index, article pos (or redirect data),
+        #  coordinates]
+        print "Writing titles index..."
+        title_positions = {}
+
+        title_pos = 0
+        for (i, title) in enumerate(self.titles):
+            title[1] = title_pos
+            title_positions[title[0]] = title_pos
+            title_pos += self.titleentry_encodedlen(title[0])
+
+        self.title_positions = title_positions
+        if not write:
+            return
+
+        print("Resolving redirects and writing title index...")
+
+        with open(self.titles_file, 'wb') as f_titles:
+            for title in self.titles:
+                if type(title[2]) == type(''): # redirect
+                    try:
+                        dest_pos = title_positions[title[2]]
+                    except KeyError:
+                        dest_pos = 0xffffffff
+                    articlepos = (0xff, dest_pos, 0, 0)
                 else:
-                    items += [(lat, lon, title_positions[title])]
+                    articlepos = title[2]
+
+                data = self.titleentry_encode(articlepos, title[0])
+                f_titles.write(data)
+
+    def write_coordinates(self, max_articles_per_section):
+        # format for titles:
+        # [title, pos in index, article pos (or redirect data),
+        #  coordinates]
+
+        coords_by_zoom = [[] for i in range(20)]
+        tpos = self.title_positions
+
+        for title in self.titles:
+            (lat, lng, zoom) = title[3]
+            if lat is None:
+                continue
+            if title[0] not in tpos:
+                print("Title %s not found (referenced by coordinates)."
+                           % repr(title[0]))
+                continue
+
+            coords_by_zoom[zoom] += [(lat, lng, tpos[title[0]])]
+
+        coord_files = []
 
         print "Generating quadtrees..."
-        data = self.get_quadtree_index_table(items,
-                                      -91.0, 91.0, -181.0, 181.0,
-                                      max_articles_per_section)
-        with open(self.coordinates_file, 'wb') as coord_file:
-            coord_file.write(data)
+        i = 1
+        for items in coords_by_zoom:
+            if not items:
+                continue
+            data = self.get_quadtree_index_table(items,
+                                          -91.0, 91.0, -181.0, 181.0,
+                                          max_articles_per_section)
+            cfile = self.coordinates_files_schema % i
+            with open(cfile, 'wb') as coord_file:
+                coord_file.write(data)
+            coord_files += [cfile]
+            i += 1
+        return coord_files
 
     def get_quadtree_index_table(self, items,
                                  minlat, maxlat, minlon, maxlon,
@@ -616,7 +616,7 @@ if __name__ == "__main__":
 
         if sys.argv[1] == '--convert':
             backend.storage_create(sys.argv[2],
-                                'titles.idx', 'coordinates.idx',
+                                'titles.idx', 'coordinates_%02d.idx',
                                 'wikipedia_%02d.dat', 'metadata.txt',
                                 sys.argv[3], sys.argv[4], sys.argv[5])
         elif sys.argv[1] == '--article':

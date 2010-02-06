@@ -39,6 +39,8 @@ import urllib2
 import os
 import ConfigParser
 
+import evopediautils
+
 __all__ = ['EvopediaHandler', 'GPSHandler', 'GPSHandlerGypsy',
         'GPSHandlerLiblocation', 'TileRepo', 'start_server']
 
@@ -71,7 +73,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.write_header(expires=True)
             with open(os.path.join(static_path, 'header.html')) as head:
                 shutil.copyfileobj(head, self.wfile)
-            (lat, lon, zoom) = self.get_coords_in_article(text)
+            (lat, lon, zoom) = evopediautils.parse_coordinates_in_article(text)
             if lat is not None and lon is not None:
                 self.wfile.write(('<a class="evopedianav" ' +
                         'href="/map/?lat=%f&lon=%f&zoom=%d">' +
@@ -132,99 +134,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 text += '<article name="%s" url="/wiki/%s" />' % (name, title)
         return '<list complete="1">' + text + '</list>'
 
-    def get_coords_in_article(self, text):
-        lat = lng = zoom = None
-
-        m = re.search('params=(\d*)_(\d*)_([0-9.]*)_?(N|S)'
-                      '_(\d*)_(\d*)_([0-9.]*)_?(E|W)([^"\']*)', text)
-        if m:
-            (lat, lng) = self.parse_coordinates_dms(m)
-            zoom = self.parse_coordinates_zoom(m.group(9))
-        else:
-            m = re.search('params=(\d*\.?\d*)_(N|S)_(\d*\.?\d*)_(E|W)([^"\']*)', text)
-            if m:
-                (lat, lng) = self.parse_coordinates_dec(m)
-                zoom = self.parse_coordinates_zoom(m.group(5))
-        return (lat, lng, zoom)
-
-    def parse_coordinates_dec(self, match):
-        try:
-            lat = float(match.group(1))
-            if match.group(2) == 'S':
-                lat *= -1
-            lon = float(match.group(3))
-            if match.group(4) == 'W':
-                lon *= -1
-            return (lat, lon)
-        except ValueError:
-            return (None, None)
-
-    def parse_coordinates_dms(self, match):
-        try:
-            groups = [match.group(i) for i in (1, 2, 3, 5, 6, 7)]
-            for i in range(len(groups)):
-                try:
-                    groups[i] = float(groups[i])
-                except ValueError:
-                    groups[i] = 0
-            lat = groups[0] + groups[1] / 60 + groups[2] / 3600
-            if match.group(4) == 'S':
-                lat *= -1
-            lon = groups[3] + groups[4] / 60 + groups[5] / 3600
-            if match.group(8) == 'W':
-                lon *= -1
-            return (lat, lon)
-        except ValueError:
-            return (None, None)
-
-    def parse_coordinates_zoom(self, zoomstr):
-        """Guess zoom value in zoomstr as defined in https://wiki.toolserver.org/view/GeoHack"""
-
-        default = 12
-        scale_by_type = {
-              'country':    10000000,
-              'satellite':  10000000,  
-              'state':       3000000,
-              'adm1st':      1000000,
-              'adm2nd':       300000,
-              'default':      300000,
-              'adm3rd':       100000,
-              'city':         100000,
-              'mountain':     100000,
-              'isle':         100000,
-              'river':        100000,
-              'waterbody':    100000,
-              'event':         50000,
-              'forest':        50000,
-              'glacier':       50000,
-              'airport':       30000,
-              'edu':           10000,
-              'pass':          10000,
-              'landmark':      10000,
-              'railwaystation':10000 }
-
-        m = re.search('_(scale|dim|type):(\d*)([a-z0-9]*)', zoomstr)
-        if not m:
-            return default
-        else:
-            try:
-                s = m.group(1)
-                if s == 'scale':
-                    scale = float(m.group(2))
-                elif s == 'dim':
-                    scale = 10 * float(m.group(2))
-                else:
-                    type = m.group(2) + m.group(3)
-                    try:
-                        scale = scale_by_type[type]
-                    except KeyError:
-                        return default
-
-                zoom = round(28.7253 - math.log(scale, 2))
-                return int(max(2, min(18, zoom)))
-            except ValueError:
-                return default
-
     def output_map(self, coords, zoom):
         global static_path
         TILESIZE = self.TILESIZE
@@ -269,7 +178,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     pathname2url('/wiki/' + name.encode('utf-8')))
             self.wfile.write(text)
             articlecount += 1
-            if articlecount > 100:
+            if articlecount >= 15:
                 self.wfile.write('<error>Zoom in for more articles.' +
                                   '</error>')
                 break

@@ -18,94 +18,100 @@
 # License along with this program; if not, see
 # <http://www.gnu.org/licenses/>.
 
+import re
+import math
+
+__all__ = ['normalization_table', 'characters', 'normalize',
+        'get_coords_in_article']
+
 normalization_table = {
-       u"Ḅ": u"b", u"Ć": u"c", u"Ȍ": u"o", u"ẏ": u"y", u"Ḕ": u"e", u"Ė": u"e",
-       u"ơ": u"o", u"Ḥ": u"h", u"Ȭ": u"o", u"ắ": u"a", u"Ḵ": u"k", u"Ķ": u"k",
-       u"ế": u"e", u"Ṅ": u"n", u"ņ": u"n", u"Ë": u"e", u"ỏ": u"o", u"Ǒ": u"o",
-       u"Ṕ": u"p", u"Ŗ": u"r", u"Û": u"u", u"ở": u"o", u"ǡ": u"a", u"Ṥ": u"s",
-       u"ë": u"e", u"ữ": u"u", u"p": u"p", u"Ṵ": u"u", u"Ŷ": u"y", u"û": u"u",
-       u"ā": u"a", u"Ẅ": u"w", u"ȇ": u"e", u"ḏ": u"d", u"ȗ": u"u", u"ḟ": u"f",
-       u"ġ": u"g", u"Ấ": u"a", u"ȧ": u"a", u"ḯ": u"i", u"Ẵ": u"a", u"ḿ": u"m",
-       u"À": u"a", u"Ễ": u"e", u"ṏ": u"o", u"ő": u"o", u"Ổ": u"o", u"ǖ": u"u",
-       u"ṟ": u"r", u"š": u"s", u"à": u"a", u"Ụ": u"u", u"Ǧ": u"g", u"k": u"k",
-       u"ṯ": u"t", u"ű": u"u", u"Ỵ": u"y", u"ṿ": u"v", u"Ā": u"a", u"Ȃ": u"a",
-       u"ẅ": u"w", u"Ḋ": u"d", u"Ȓ": u"r", u"Ḛ": u"e", u"Ġ": u"g", u"ấ": u"a",
-       u"Ḫ": u"h", u"İ": u"i", u"Ȳ": u"y", u"ẵ": u"a", u"Ḻ": u"l", u"Á": u"a",
-       u"ễ": u"e", u"Ṋ": u"n", u"Ñ": u"n", u"Ő": u"o", u"ổ": u"o", u"Ǜ": u"u",
-       u"Ṛ": u"r", u"á": u"a", u"Š": u"s", u"ụ": u"u", u"f": u"f", u"ǫ": u"o",
-       u"Ṫ": u"t", u"ñ": u"n", u"Ű": u"u", u"ỵ": u"y", u"v": u"v", u"ǻ": u"a",
-       u"Ṻ": u"u", u"ḅ": u"b", u"ċ": u"c", u"Ẋ": u"x", u"ȍ": u"o", u"ḕ": u"e",
-       u"ě": u"e", u"Ơ": u"o", u"ḥ": u"h", u"ī": u"i", u"Ẫ": u"a", u"ȭ": u"o",
-       u"ư": u"u", u"ḵ": u"k", u"Ļ": u"l", u"Ẻ": u"e", u"ṅ": u"n", u"Ị": u"i",
-       u"ǐ": u"i", u"ṕ": u"p", u"Ö": u"o", u"ś": u"s", u"Ớ": u"o", u"a": u"a",
-       u"Ǡ": u"a", u"ṥ": u"s", u"ū": u"u", u"Ừ": u"u", u"q": u"q", u"ǰ": u"j",
-       u"ṵ": u"u", u"ö": u"o", u"Ż": u"z", u"Ȁ": u"a", u"ẃ": u"w", u"Ă": u"a",
-       u"Ḉ": u"c", u"Ȑ": u"r", u"Ē": u"e", u"Ḙ": u"e", u"ả": u"a", u"Ģ": u"g",
-       u"Ḩ": u"h", u"Ȱ": u"o", u"ẳ": u"a", u"Ḹ": u"l", u"ể": u"e", u"Ç": u"c",
-       u"Ṉ": u"n", u"Ǎ": u"a", u"ồ": u"o", u"Ṙ": u"r", u"ợ": u"o", u"Ţ": u"t",
-       u"ç": u"c", u"Ṩ": u"s", u"ǭ": u"o", u"l": u"l", u"ỳ": u"y", u"Ų": u"u",
-       u"Ṹ": u"u", u"ḃ": u"b", u"Ẉ": u"w", u"ȋ": u"i", u"č": u"c", u"ḓ": u"d",
-       u"ẘ": u"w", u"ț": u"t", u"ĝ": u"g", u"ḣ": u"h", u"Ẩ": u"a", u"ȫ": u"o",
-       u"ĭ": u"i", u"ḳ": u"k", u"Ẹ": u"e", u"Ľ": u"l", u"ṃ": u"m", u"Ỉ": u"i",
-       u"ō": u"o", u"Ì": u"i", u"ṓ": u"o", u"ǒ": u"o", u"Ộ": u"o", u"ŝ": u"s",
-       u"Ü": u"u", u"ṣ": u"s", u"g": u"g", u"Ứ": u"u", u"ŭ": u"u", u"ì": u"i",
-       u"ṳ": u"u", u"w": u"w", u"Ỹ": u"y", u"Ž": u"z", u"ü": u"u", u"Ȇ": u"e",
-       u"ẉ": u"w", u"Č": u"c", u"Ḏ": u"d", u"Ȗ": u"u", u"ẙ": u"y", u"Ĝ": u"g",
-       u"Ḟ": u"f", u"Ȧ": u"a", u"ẩ": u"a", u"Ĭ": u"i", u"Ḯ": u"i", u"ẹ": u"e",
-       u"ļ": u"l", u"Ḿ": u"m", u"ỉ": u"i", u"Í": u"i", u"Ō": u"o", u"Ṏ": u"o",
-       u"Ǘ": u"u", u"ộ": u"o", u"Ý": u"y", u"Ŝ": u"s", u"Ṟ": u"r", u"b": u"b",
-       u"ǧ": u"g", u"ứ": u"u", u"í": u"i", u"Ŭ": u"u", u"Ṯ": u"t", u"r": u"r",
-       u"ỹ": u"y", u"ý": u"y", u"ż": u"z", u"Ṿ": u"v", u"ȁ": u"a", u"ć": u"c",
-       u"ḉ": u"c", u"Ẏ": u"y", u"ȑ": u"r", u"ė": u"e", u"ḙ": u"e", u"ḩ": u"h",
-       u"Ắ": u"a", u"ȱ": u"o", u"ķ": u"k", u"ḹ": u"l", u"Ế": u"e", u"Â": u"a",
-       u"Ň": u"n", u"ṉ": u"n", u"Ỏ": u"o", u"Ò": u"o", u"ŗ": u"r", u"ṙ": u"r",
-       u"ǜ": u"u", u"Ở": u"o", u"â": u"a", u"ṩ": u"s", u"m": u"m", u"Ǭ": u"o",
-       u"Ữ": u"u", u"ò": u"o", u"ŷ": u"y", u"ṹ": u"u", u"Ȅ": u"e", u"ẇ": u"w",
-       u"Ḍ": u"d", u"Ď": u"d", u"Ȕ": u"u", u"ẗ": u"t", u"Ḝ": u"e", u"Ğ": u"g",
-       u"ầ": u"a", u"Ḭ": u"i", u"Į": u"i", u"ặ": u"a", u"Ḽ": u"l", u"ľ": u"l",
-       u"Ã": u"a", u"ệ": u"e", u"Ṍ": u"o", u"Ŏ": u"o", u"Ó": u"o", u"ỗ": u"o",
-       u"Ǚ": u"u", u"Ṝ": u"r", u"Ş": u"s", u"ã": u"a", u"ủ": u"u", u"ǩ": u"k",
-       u"h": u"h", u"Ṭ": u"t", u"Ů": u"u", u"ó": u"o", u"ỷ": u"y", u"ǹ": u"n",
-       u"x": u"x", u"Ṽ": u"v", u"ž": u"z", u"ḇ": u"b", u"ĉ": u"c", u"Ẍ": u"x",
-       u"ȏ": u"o", u"ḗ": u"e", u"ę": u"e", u"ȟ": u"h", u"ḧ": u"h", u"ĩ": u"i",
-       u"Ậ": u"a", u"ȯ": u"o", u"ḷ": u"l", u"Ĺ": u"l", u"Ẽ": u"e", u"ṇ": u"n",
-       u"È": u"e", u"Ọ": u"o", u"ǎ": u"a", u"ṗ": u"p", u"ř": u"r", u"Ờ": u"o",
-       u"Ǟ": u"a", u"c": u"c", u"ṧ": u"s", u"ũ": u"u", u"è": u"e", u"Ử": u"u",
-       u"s": u"s", u"ṷ": u"u", u"Ź": u"z", u"Ḃ": u"b", u"Ĉ": u"c", u"Ȋ": u"i",
-       u"ẍ": u"x", u"Ḓ": u"d", u"Ę": u"e", u"Ț": u"t", u"쎟": u"s", u"Ḣ": u"h",
-       u"Ĩ": u"i", u"Ȫ": u"o", u"ậ": u"a", u"Ḳ": u"k", u"ẽ": u"e", u"Ṃ": u"m",
-       u"É": u"e", u"ň": u"n", u"ọ": u"o", u"Ǔ": u"u", u"Ṓ": u"o", u"Ù": u"u",
-       u"Ř": u"r", u"ờ": u"o", u"Ṣ": u"s", u"é": u"e", u"Ũ": u"u", u"ử": u"u",
-       u"n": u"n", u"Ṳ": u"u", u"ù": u"u", u"Ÿ": u"y", u"ă": u"a", u"Ẃ": u"w",
-       u"ȅ": u"e", u"ḍ": u"d", u"ē": u"e", u"ȕ": u"u", u"ḝ": u"e", u"ģ": u"g",
-       u"Ả": u"a", u"ḭ": u"i", u"Ẳ": u"a", u"ḽ": u"l", u"Ń": u"n", u"Ể": u"e",
-       u"ṍ": u"o", u"Î": u"i", u"Ồ": u"o", u"ǘ": u"u", u"ṝ": u"r", u"ţ": u"t",
-       u"Ợ": u"o", u"i": u"i", u"Ǩ": u"k", u"ṭ": u"t", u"î": u"i", u"ų": u"u",
-       u"Ỳ": u"y", u"y": u"y", u"Ǹ": u"n", u"ṽ": u"v", u"Ḁ": u"a", u"Ȉ": u"i",
-       u"ẋ": u"x", u"Ċ": u"c", u"Ḑ": u"d", u"Ș": u"s", u"Ě": u"e", u"Ḡ": u"g",
-       u"Ȩ": u"e", u"ẫ": u"a", u"Ī": u"i", u"Ḱ": u"k", u"ẻ": u"e", u"ĺ": u"l",
-       u"Ṁ": u"m", u"ị": u"i", u"Ï": u"i", u"Ṑ": u"o", u"Ǖ": u"u", u"ớ": u"o",
-       u"Ś": u"s", u"ß": u"s", u"Ṡ": u"s", u"d": u"d", u"ừ": u"u", u"Ū": u"u",
-       u"ï": u"i", u"Ṱ": u"t", u"ǵ": u"g", u"t": u"t", u"ź": u"z", u"ÿ": u"y",
-       u"Ẁ": u"w", u"ȃ": u"a", u"ą": u"a", u"ḋ": u"d", u"ȓ": u"r", u"ĕ": u"e",
-       u"ḛ": u"e", u"Ạ": u"a", u"ĥ": u"h", u"ḫ": u"h", u"Ằ": u"a", u"ȳ": u"y",
-       u"ĵ": u"j", u"ḻ": u"l", u"Ề": u"e", u"Ņ": u"n", u"Ä": u"a", u"ṋ": u"n",
-       u"Ố": u"o", u"ŕ": u"r", u"Ô": u"o", u"ṛ": u"r", u"ǚ": u"u", u"Ỡ": u"o",
-       u"ť": u"t", u"ä": u"a", u"ṫ": u"t", u"Ǫ": u"o", u"o": u"o", u"Ự": u"u",
-       u"ŵ": u"w", u"ô": u"o", u"ṻ": u"u", u"Ǻ": u"a", u"ẁ": u"w", u"Ą": u"a",
-       u"Ḇ": u"b", u"Ȏ": u"o", u"Ĕ": u"e", u"Ḗ": u"e", u"Ȟ": u"h", u"ạ": u"a",
-       u"Ĥ": u"h", u"Ḧ": u"h", u"Ư": u"u", u"Ȯ": u"o", u"ằ": u"a", u"Ĵ": u"j",
-       u"Ḷ": u"l", u"ề": u"e", u"Å": u"a", u"ń": u"n", u"Ṇ": u"n", u"Ǐ": u"i",
-       u"ố": u"o", u"Õ": u"o", u"Ŕ": u"r", u"Ṗ": u"p", u"ǟ": u"a", u"ỡ": u"o",
-       u"å": u"a", u"Ť": u"t", u"Ṧ": u"s", u"j": u"j", u"ự": u"u", u"õ": u"o",
-       u"Ŵ": u"w", u"Ṷ": u"u", u"z": u"z", u"ḁ": u"a", u"Ẇ": u"w", u"ȉ": u"i",
-       u"ď": u"d", u"ḑ": u"d", u"ẖ": u"h", u"ș": u"s", u"ğ": u"g", u"ḡ": u"g",
-       u"Ầ": u"a", u"ȩ": u"e", u"į": u"i", u"ḱ": u"k", u"Ặ": u"a", u"ṁ": u"m",
-       u"Ệ": u"e", u"Ê": u"e", u"ŏ": u"o", u"ṑ": u"o", u"ǔ": u"u", u"Ỗ": u"o",
-       u"Ú": u"u", u"ş": u"s", u"ṡ": u"s", u"e": u"e", u"Ủ": u"u", u"ê": u"e",
-       u"ů": u"u", u"ṱ": u"t", u"u": u"u", u"Ǵ": u"g", u"Ỷ": u"y", u"ú": u"u",
-       u"0": u"0", u"1": u"1", u"2": u"2", u"3": u"3", u"4": u"4", u"5": u"5",
-       u"6": u"6", u"7": u"7", u"8": u"8", u"9": u"9"}
+       u"Ḅ": "b", u"Ć": "c", u"Ȍ": "o", u"ẏ": "y", u"Ḕ": "e", u"Ė": "e",
+       u"ơ": "o", u"Ḥ": "h", u"Ȭ": "o", u"ắ": "a", u"Ḵ": "k", u"Ķ": "k",
+       u"ế": "e", u"Ṅ": "n", u"ņ": "n", u"Ë": "e", u"ỏ": "o", u"Ǒ": "o",
+       u"Ṕ": "p", u"Ŗ": "r", u"Û": "u", u"ở": "o", u"ǡ": "a", u"Ṥ": "s",
+       u"ë": "e", u"ữ": "u", u"p": "p", u"Ṵ": "u", u"Ŷ": "y", u"û": "u",
+       u"ā": "a", u"Ẅ": "w", u"ȇ": "e", u"ḏ": "d", u"ȗ": "u", u"ḟ": "f",
+       u"ġ": "g", u"Ấ": "a", u"ȧ": "a", u"ḯ": "i", u"Ẵ": "a", u"ḿ": "m",
+       u"À": "a", u"Ễ": "e", u"ṏ": "o", u"ő": "o", u"Ổ": "o", u"ǖ": "u",
+       u"ṟ": "r", u"š": "s", u"à": "a", u"Ụ": "u", u"Ǧ": "g", u"k": "k",
+       u"ṯ": "t", u"ű": "u", u"Ỵ": "y", u"ṿ": "v", u"Ā": "a", u"Ȃ": "a",
+       u"ẅ": "w", u"Ḋ": "d", u"Ȓ": "r", u"Ḛ": "e", u"Ġ": "g", u"ấ": "a",
+       u"Ḫ": "h", u"İ": "i", u"Ȳ": "y", u"ẵ": "a", u"Ḻ": "l", u"Á": "a",
+       u"ễ": "e", u"Ṋ": "n", u"Ñ": "n", u"Ő": "o", u"ổ": "o", u"Ǜ": "u",
+       u"Ṛ": "r", u"á": "a", u"Š": "s", u"ụ": "u", u"f": "f", u"ǫ": "o",
+       u"Ṫ": "t", u"ñ": "n", u"Ű": "u", u"ỵ": "y", u"v": "v", u"ǻ": "a",
+       u"Ṻ": "u", u"ḅ": "b", u"ċ": "c", u"Ẋ": "x", u"ȍ": "o", u"ḕ": "e",
+       u"ě": "e", u"Ơ": "o", u"ḥ": "h", u"ī": "i", u"Ẫ": "a", u"ȭ": "o",
+       u"ư": "u", u"ḵ": "k", u"Ļ": "l", u"Ẻ": "e", u"ṅ": "n", u"Ị": "i",
+       u"ǐ": "i", u"ṕ": "p", u"Ö": "o", u"ś": "s", u"Ớ": "o", u"a": "a",
+       u"Ǡ": "a", u"ṥ": "s", u"ū": "u", u"Ừ": "u", u"q": "q", u"ǰ": "j",
+       u"ṵ": "u", u"ö": "o", u"Ż": "z", u"Ȁ": "a", u"ẃ": "w", u"Ă": "a",
+       u"Ḉ": "c", u"Ȑ": "r", u"Ē": "e", u"Ḙ": "e", u"ả": "a", u"Ģ": "g",
+       u"Ḩ": "h", u"Ȱ": "o", u"ẳ": "a", u"Ḹ": "l", u"ể": "e", u"Ç": "c",
+       u"Ṉ": "n", u"Ǎ": "a", u"ồ": "o", u"Ṙ": "r", u"ợ": "o", u"Ţ": "t",
+       u"ç": "c", u"Ṩ": "s", u"ǭ": "o", u"l": "l", u"ỳ": "y", u"Ų": "u",
+       u"Ṹ": "u", u"ḃ": "b", u"Ẉ": "w", u"ȋ": "i", u"č": "c", u"ḓ": "d",
+       u"ẘ": "w", u"ț": "t", u"ĝ": "g", u"ḣ": "h", u"Ẩ": "a", u"ȫ": "o",
+       u"ĭ": "i", u"ḳ": "k", u"Ẹ": "e", u"Ľ": "l", u"ṃ": "m", u"Ỉ": "i",
+       u"ō": "o", u"Ì": "i", u"ṓ": "o", u"ǒ": "o", u"Ộ": "o", u"ŝ": "s",
+       u"Ü": "u", u"ṣ": "s", u"g": "g", u"Ứ": "u", u"ŭ": "u", u"ì": "i",
+       u"ṳ": "u", u"w": "w", u"Ỹ": "y", u"Ž": "z", u"ü": "u", u"Ȇ": "e",
+       u"ẉ": "w", u"Č": "c", u"Ḏ": "d", u"Ȗ": "u", u"ẙ": "y", u"Ĝ": "g",
+       u"Ḟ": "f", u"Ȧ": "a", u"ẩ": "a", u"Ĭ": "i", u"Ḯ": "i", u"ẹ": "e",
+       u"ļ": "l", u"Ḿ": "m", u"ỉ": "i", u"Í": "i", u"Ō": "o", u"Ṏ": "o",
+       u"Ǘ": "u", u"ộ": "o", u"Ý": "y", u"Ŝ": "s", u"Ṟ": "r", u"b": "b",
+       u"ǧ": "g", u"ứ": "u", u"í": "i", u"Ŭ": "u", u"Ṯ": "t", u"r": "r",
+       u"ỹ": "y", u"ý": "y", u"ż": "z", u"Ṿ": "v", u"ȁ": "a", u"ć": "c",
+       u"ḉ": "c", u"Ẏ": "y", u"ȑ": "r", u"ė": "e", u"ḙ": "e", u"ḩ": "h",
+       u"Ắ": "a", u"ȱ": "o", u"ķ": "k", u"ḹ": "l", u"Ế": "e", u"Â": "a",
+       u"Ň": "n", u"ṉ": "n", u"Ỏ": "o", u"Ò": "o", u"ŗ": "r", u"ṙ": "r",
+       u"ǜ": "u", u"Ở": "o", u"â": "a", u"ṩ": "s", u"m": "m", u"Ǭ": "o",
+       u"Ữ": "u", u"ò": "o", u"ŷ": "y", u"ṹ": "u", u"Ȅ": "e", u"ẇ": "w",
+       u"Ḍ": "d", u"Ď": "d", u"Ȕ": "u", u"ẗ": "t", u"Ḝ": "e", u"Ğ": "g",
+       u"ầ": "a", u"Ḭ": "i", u"Į": "i", u"ặ": "a", u"Ḽ": "l", u"ľ": "l",
+       u"Ã": "a", u"ệ": "e", u"Ṍ": "o", u"Ŏ": "o", u"Ó": "o", u"ỗ": "o",
+       u"Ǚ": "u", u"Ṝ": "r", u"Ş": "s", u"ã": "a", u"ủ": "u", u"ǩ": "k",
+       u"h": "h", u"Ṭ": "t", u"Ů": "u", u"ó": "o", u"ỷ": "y", u"ǹ": "n",
+       u"x": "x", u"Ṽ": "v", u"ž": "z", u"ḇ": "b", u"ĉ": "c", u"Ẍ": "x",
+       u"ȏ": "o", u"ḗ": "e", u"ę": "e", u"ȟ": "h", u"ḧ": "h", u"ĩ": "i",
+       u"Ậ": "a", u"ȯ": "o", u"ḷ": "l", u"Ĺ": "l", u"Ẽ": "e", u"ṇ": "n",
+       u"È": "e", u"Ọ": "o", u"ǎ": "a", u"ṗ": "p", u"ř": "r", u"Ờ": "o",
+       u"Ǟ": "a", u"c": "c", u"ṧ": "s", u"ũ": "u", u"è": "e", u"Ử": "u",
+       u"s": "s", u"ṷ": "u", u"Ź": "z", u"Ḃ": "b", u"Ĉ": "c", u"Ȋ": "i",
+       u"ẍ": "x", u"Ḓ": "d", u"Ę": "e", u"Ț": "t", u"쎟": "s", u"Ḣ": "h",
+       u"Ĩ": "i", u"Ȫ": "o", u"ậ": "a", u"Ḳ": "k", u"ẽ": "e", u"Ṃ": "m",
+       u"É": "e", u"ň": "n", u"ọ": "o", u"Ǔ": "u", u"Ṓ": "o", u"Ù": "u",
+       u"Ř": "r", u"ờ": "o", u"Ṣ": "s", u"é": "e", u"Ũ": "u", u"ử": "u",
+       u"n": "n", u"Ṳ": "u", u"ù": "u", u"Ÿ": "y", u"ă": "a", u"Ẃ": "w",
+       u"ȅ": "e", u"ḍ": "d", u"ē": "e", u"ȕ": "u", u"ḝ": "e", u"ģ": "g",
+       u"Ả": "a", u"ḭ": "i", u"Ẳ": "a", u"ḽ": "l", u"Ń": "n", u"Ể": "e",
+       u"ṍ": "o", u"Î": "i", u"Ồ": "o", u"ǘ": "u", u"ṝ": "r", u"ţ": "t",
+       u"Ợ": "o", u"i": "i", u"Ǩ": "k", u"ṭ": "t", u"î": "i", u"ų": "u",
+       u"Ỳ": "y", u"y": "y", u"Ǹ": "n", u"ṽ": "v", u"Ḁ": "a", u"Ȉ": "i",
+       u"ẋ": "x", u"Ċ": "c", u"Ḑ": "d", u"Ș": "s", u"Ě": "e", u"Ḡ": "g",
+       u"Ȩ": "e", u"ẫ": "a", u"Ī": "i", u"Ḱ": "k", u"ẻ": "e", u"ĺ": "l",
+       u"Ṁ": "m", u"ị": "i", u"Ï": "i", u"Ṑ": "o", u"Ǖ": "u", u"ớ": "o",
+       u"Ś": "s", u"ß": "s", u"Ṡ": "s", u"d": "d", u"ừ": "u", u"Ū": "u",
+       u"ï": "i", u"Ṱ": "t", u"ǵ": "g", u"t": "t", u"ź": "z", u"ÿ": "y",
+       u"Ẁ": "w", u"ȃ": "a", u"ą": "a", u"ḋ": "d", u"ȓ": "r", u"ĕ": "e",
+       u"ḛ": "e", u"Ạ": "a", u"ĥ": "h", u"ḫ": "h", u"Ằ": "a", u"ȳ": "y",
+       u"ĵ": "j", u"ḻ": "l", u"Ề": "e", u"Ņ": "n", u"Ä": "a", u"ṋ": "n",
+       u"Ố": "o", u"ŕ": "r", u"Ô": "o", u"ṛ": "r", u"ǚ": "u", u"Ỡ": "o",
+       u"ť": "t", u"ä": "a", u"ṫ": "t", u"Ǫ": "o", u"o": "o", u"Ự": "u",
+       u"ŵ": "w", u"ô": "o", u"ṻ": "u", u"Ǻ": "a", u"ẁ": "w", u"Ą": "a",
+       u"Ḇ": "b", u"Ȏ": "o", u"Ĕ": "e", u"Ḗ": "e", u"Ȟ": "h", u"ạ": "a",
+       u"Ĥ": "h", u"Ḧ": "h", u"Ư": "u", u"Ȯ": "o", u"ằ": "a", u"Ĵ": "j",
+       u"Ḷ": "l", u"ề": "e", u"Å": "a", u"ń": "n", u"Ṇ": "n", u"Ǐ": "i",
+       u"ố": "o", u"Õ": "o", u"Ŕ": "r", u"Ṗ": "p", u"ǟ": "a", u"ỡ": "o",
+       u"å": "a", u"Ť": "t", u"Ṧ": "s", u"j": "j", u"ự": "u", u"õ": "o",
+       u"Ŵ": "w", u"Ṷ": "u", u"z": "z", u"ḁ": "a", u"Ẇ": "w", u"ȉ": "i",
+       u"ď": "d", u"ḑ": "d", u"ẖ": "h", u"ș": "s", u"ğ": "g", u"ḡ": "g",
+       u"Ầ": "a", u"ȩ": "e", u"į": "i", u"ḱ": "k", u"Ặ": "a", u"ṁ": "m",
+       u"Ệ": "e", u"Ê": "e", u"ŏ": "o", u"ṑ": "o", u"ǔ": "u", u"Ỗ": "o",
+       u"Ú": "u", u"ş": "s", u"ṡ": "s", u"e": "e", u"Ủ": "u", u"ê": "e",
+       u"ů": "u", u"ṱ": "t", u"u": "u", u"Ǵ": "g", u"Ỷ": "y", u"ú": "u",
+       u"0": "0", u"1": "1", u"2": "2", u"3": "3", u"4": "4", u"5": "5",
+       u"6": "6", u"7": "7", u"8": "8", u"9": "9"}
 
 characters = "0123456789_abcdefghijklmnopqrstuvwxyz"
 
@@ -114,12 +120,103 @@ def normalize(str):
     global normalization_table
     nt = normalization_table # optimization
 
-    str2 = u''
+    str2 = ''
     for c in unicode(str).lower():
         try:
             str2 += nt[c]
         except KeyError:
             str2 += '_'
-    # XXX depending on speed tests (and relevancy), replace by
-    # return ''.join(nt[c] if c in nt else '_' for c in unicode(str).lower())
     return str2
+
+geo_scale_by_type = {
+      'country':    10000000,
+      'satellite':  10000000,  
+      'state':       3000000,
+      'adm1st':      1000000,
+      'adm2nd':       300000,
+      'default':      300000,
+      'adm3rd':       100000,
+      'city':         100000,
+      'mountain':     100000,
+      'isle':         100000,
+      'river':        100000,
+      'waterbody':    100000,
+      'event':         50000,
+      'forest':        50000,
+      'glacier':       50000,
+      'airport':       30000,
+      'edu':           10000,
+      'pass':          10000,
+      'landmark':      10000,
+      'railwaystation':10000 }
+
+def parse_coordinates_in_article(text, parse_zoom=True):
+    """Search article text for geo link and return parsed coordinates
+    together with guessed zoom value.
+
+    For more information see https://wiki.toolserver.org/view/GeoHack"""
+
+    m = re.search('params=(\d*\.?\d*)_(\d*)_?(\d*\.?\d*)_?(N|S)'
+                  '_(\d*\.?\d*)_(\d*)_?(\d*\.?\d*)_?(E|W)([^"\']*)', text)
+    if not m:
+        return (None, None, None)
+
+    lat = 0
+    for i in range(1, 4):
+        v = m.group(i)
+        try:
+            v = float(v)
+        except ValueError:
+            continue
+        lat += v * (60.0 ** -(i - 1))
+    if m.group(4) == 'S':
+        lat = - lat
+
+    lng = 0
+    for i in range(5, 8):
+        v = m.group(i)
+        try:
+            v = float(v)
+        except ValueError:
+            continue
+        lng += v * (60.0 ** -(i - 5))
+    if m.group(8) == 'W':
+        lng = - lng
+
+    if parse_zoom:
+        zoom = parse_coordinates_zoom(m.group(9))
+    else:
+        zoom = None
+    return (lat, lng, zoom)
+
+def parse_coordinates_zoom(zoomstr):
+    """Guess zoom value in zoomstr as defined in https://wiki.toolserver.org/view/GeoHack"""
+
+    default = 12
+
+    m = re.search('_(scale|dim|type):(\d*)([a-z0-9]*)', zoomstr)
+    if not m:
+        return default
+    else:
+        s = m.group(1)
+        if s == 'scale':
+            try:
+                scale = float(m.group(2))
+            except ValueError:
+                return default
+        elif s == 'dim':
+            try:
+                scale = 10 * float(m.group(2))
+            except ValueError:
+                return default
+        else:
+            type = m.group(2) + m.group(3)
+            print type
+            try:
+                scale = geo_scale_by_type[type]
+            except KeyError:
+                return default
+
+        zoom = round(28.7253 - math.log(scale, 2))
+        return int(max(2, min(18, zoom)))
+
