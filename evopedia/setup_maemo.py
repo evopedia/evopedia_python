@@ -32,9 +32,9 @@ def main():
             'Programming Language :: Python'],
         scripts=['evopedia_starter.py', 'evopedia.sh'],
         packages=['evopedia'],
-        data_files=[('/usr/share/applications/hildon/', ['evopedia.desktop']),
-                    ('/usr/share/pixmaps/', ['wikipedia.png']),
-                    ('/usr/lib/evopedia/static/', glob('static/*'))],
+        data_files=[('share/applications/hildon', ['evopedia.desktop']),
+                    ('share/pixmaps', ['wikipedia.png']),
+                    ('share/evopedia/static', glob('static/*'))],
     )
 
 if __name__ == '__main__':

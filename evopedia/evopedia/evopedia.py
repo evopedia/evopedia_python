@@ -22,6 +22,7 @@
 from __future__ import with_statement
 from __future__ import division
 
+import sys
 import cgi
 import shutil
 import SocketServer
@@ -44,7 +45,7 @@ import evopediautils
 __all__ = ['EvopediaHandler', 'GPSHandler', 'GPSHandlerGypsy',
         'GPSHandlerLiblocation', 'TileRepo', 'start_server']
 
-static_path = '/usr/lib/evopedia/static/'
+static_path = os.path.join(sys.prefix, 'share/evopedia/static/')
 configfile = '~/.evopediarc'
 config = None
 storage = None
