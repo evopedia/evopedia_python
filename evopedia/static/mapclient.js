@@ -346,7 +346,7 @@ MapHandler.prototype = {
             return;
         }
 
-        this.updateMap(this.gps_pos[0], this.gps_pos[1], this.zoom);
+        this.updateMap(this.gps_pos[0], this.gps_pos[1], 12);
     },
 
     containerClicked: function(e) {
