@@ -462,6 +462,17 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.send_header('Location', '/')
             self.end_headers()
             return
+        elif parts[0] == 'math':
+            if not storage.is_readable():
+                self.send_response(302)
+                self.send_header('Location', '/choose_data')
+                return
+
+            self.write_header('image/png', charset=None, expires=True)
+            data = storage.get_math_image(parts[-1][:32])
+            if data is not None:
+                self.wfile.write(data)
+            return
         elif parts[0] in ('wiki', 'articles'):
             if not storage.is_readable():
                 self.send_response(302)

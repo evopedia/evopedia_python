@@ -38,7 +38,7 @@ __all__ = ["DatafileStorage"]
 class DatafileStorage(object):
     """Class for reading from and creating compressed wikipedia images.
 
-    storage_init_read or storage_init_create have to be called to really
+    storage_init_read or storage_create have to be called to really
     use the Storage."""
 
     def storage_init_read(self, directory):
@@ -47,6 +47,13 @@ class DatafileStorage(object):
         self.data_dir = directory
         self.titles_file = os.path.join(directory, 'titles.idx')
         self.data_files_schema = os.path.join(directory, 'wikipedia_%02d.dat')
+        self.math_data_file = os.path.join(directory, 'math.dat')
+        self.math_index_file = os.path.join(directory, 'math.idx')
+
+        if not os.path.exists(self.math_index_file) or \
+                not os.path.exists(self.math_data_file):
+            self.math_index_file = None
+            self.math_data_file = None
 
         parser = ConfigParser.RawConfigParser()
         parser.read(os.path.join(directory, 'metadata.txt'))
@@ -62,6 +69,8 @@ class DatafileStorage(object):
 
         self.initialize_coords(parser)
 
+        if self.math_index_file is not None:
+            self.math_index_size = os.path.getsize(self.math_index_file)
         self.titles_file_size = os.path.getsize(self.titles_file)
 
         self.readable = 1
@@ -79,11 +88,15 @@ class DatafileStorage(object):
         self.coordinate_files = coordfiles
 
     def storage_create(self, image_dir, titles_file, coordinates_files_schema,
-                            data_files_schema, metadata_file,
+                            data_files_schema,
+                            math_data_file, math_index_file,
+                            metadata_file,
                             dump_date, dump_language, dump_orig_url):
         self.titles_file = titles_file
         self.coordinates_files_schema = coordinates_files_schema
         self.data_files_schema = data_files_schema
+        self.math_data_file = math_data_file
+        self.math_index_file = math_index_file
         print("Converting image...")
 
         num_articles = self.convert_articles(image_dir, write=True)
@@ -210,6 +223,46 @@ class DatafileStorage(object):
                                     mincoords, maxcoords,
                                     -91.0, 91.0, -181.0, 181.0):
                         yield item
+
+    def get_math_image(self, hash):
+        """Returns a PNG file typically containing a math formula based on a
+        32-character hex string."""
+
+        if self.math_index_file is None or self.math_data_file is None:
+            return None
+
+        try:
+            hash = hash.decode('hex')
+        except TypeError:
+            return None
+        if len(hash) != 16:
+            return None
+
+        entrysize = 16 + 4 + 4
+        pos = None
+
+        lo = 0
+        hi = self.math_index_size / entrysize
+        with open(self.math_index_file, 'rb') as f:
+            while lo < hi:
+                mid = (lo + hi) // 2
+                f.seek(mid * entrysize, os.SEEK_SET)
+                entry = f.read(entrysize)
+                e_hash = entry[:16]
+                if e_hash == hash:
+                    pos = entry[16:24]
+                    break
+                elif hash < e_hash:
+                    hi = mid
+                else:
+                    lo = mid + 1
+        if pos is None:
+            return None
+
+        (pos, datalen) = struct.unpack('<II', pos)
+        with open(self.math_data_file, "rb") as f:
+            f.seek(pos, os.SEEK_SET)
+            return f.read(datalen)
 
     @staticmethod
     def get_metadata(dir):
@@ -376,13 +429,13 @@ class DatafileStorage(object):
             if titlefile is None:
                 f_titles.close()
 
-    def article_compressor_multi_bz2(self, datafiles_size,
-                                     block_size, level=9):
+    def data_compressor_multi_bz2(self, datafiles_schema,
+                                     datafiles_size, block_size, level=9):
         filenr = 0
         datafile_pos = 0
         full_size = 0
 
-        datafile = open(self.data_files_schema % filenr, 'wb')
+        datafile = open(datafiles_schema % filenr, 'wb')
         queued_data = ''
         try:
             while True:
@@ -403,7 +456,7 @@ class DatafileStorage(object):
                     datafile.close()
                     filenr += 1
                     datafile_pos = 0
-                    datafile = open(self.data_files_schema % filenr, 'wb')
+                    datafile = open(datafiles_schema % filenr, 'wb')
                     full_size = 0
         finally:
             datafile.close()
@@ -421,16 +474,21 @@ class DatafileStorage(object):
         num_articles = 0
 
         titles = []
+        images = []
 
-        print("Compressing articles...")
+        print("Compressing articles and math images...")
 
         # because of memory efficiency, all strings are utf-8 encoded and not
         # unicode
 
         if write:
-            compressor = self.article_compressor_multi_bz2(
+            article_compressor = self.data_compressor_multi_bz2(
+                                self.data_files_schema,
                                 datafiles_size, block_size)
-            (filenr, datafile_pos, block_pos) = compressor.next()
+            (art_filenr, art_datafile_pos, art_block_pos) = \
+                    article_compressor.next()
+            math_data = open(self.math_data_file, "wb")
+            math_data_pos = 0
 
         for (dirpath, dirnames, filenames) in os.walk(image_dir):
             if 'coords' in dirnames:
@@ -461,22 +519,44 @@ class DatafileStorage(object):
                     destination = endpattern.sub('', destination)
                     titles += [[title, None, destination,
                                 (None, None, None)]]
+                elif fname.endswith('.png'):
+                    try:
+                        hash = fname[:-4].decode('hex')
+                    except ValueError:
+                        print("Invalid math image name: %s" % fname)
+                        continue
+                    if write:
+                        with open(os.path.join(dirpath, fname), 'rb') as fd:
+                            fdata = fd.read()
+                        images += [hash + struct.pack('<II',
+                                            math_data_pos, len(fdata))]
+                        math_data.write(fdata)
+                        math_data_pos += len(fdata)
+                    else:
+                        images += [hash]
                 else:
                     num_articles += 1
                     if write:
                         with open(os.path.join(dirpath, fname), 'rb') as fd:
                             fdata = fd.read()
                         (lat, lng, zoom) = parse_coords(fdata)
-                        article_pos = (filenr, datafile_pos,
-                                        block_pos, len(fdata))
+                        article_pos = (art_filenr, art_datafile_pos,
+                                        art_block_pos, len(fdata))
                         titles += [[title, None, article_pos,
                                         (lat, lng, zoom)]]
-                        (filenr, datafile_pos, block_pos) = compressor.send(fdata)
+                        (art_filenr, art_datafile_pos, art_block_pos) = \
+                                article_compressor.send(fdata)
                     else:
                         titles += [[title, None, (0, 0, 0, 0),
                                     (None, None, None)]]
         if write:
-            compressor.close()
+            article_compressor.close()
+            math_data.close()
+
+            print("Sorting and storing math images...")
+            images.sort()
+            with open(self.math_index_file, "wb") as mathindex:
+                mathindex.write(''.join(images))
 
         if __debug__:
             with open("title_list.txt", "wb") as titlelist:
@@ -607,6 +687,8 @@ if __name__ == "__main__":
               "              mounted at <dir> to evopedia 3.0 format\n"
               "          --searchgeo <minlat> <maxlat> <minlon> <maxlon>\n"
               "              search for articles in geographical area\n"
+              "          --math <hash>\n"
+              "              returns math image with hash <hash>\n"
               "          --article <text>\n"
               "              returns article with name <text>\n"
               "          <text>\n"
@@ -617,7 +699,9 @@ if __name__ == "__main__":
         if sys.argv[1] == '--convert':
             backend.storage_create(sys.argv[2],
                                 'titles.idx', 'coordinates_%02d.idx',
-                                'wikipedia_%02d.dat', 'metadata.txt',
+                                'wikipedia_%02d.dat',
+                                'math.dat', 'math.idx',
+                                'metadata.txt',
                                 sys.argv[3], sys.argv[4], sys.argv[5])
         elif sys.argv[1] == '--article':
             backend.storage_init_read('./')
@@ -629,6 +713,13 @@ if __name__ == "__main__":
                                               (maxlat, maxlon))
             for (title, lat, lon) in titles:
                 print "%s - %f, %f" % (title.encode('utf-8'), lat, lon)
+        elif sys.argv[1] == '--math':
+            backend.storage_init_read('./')
+            data = backend.get_math_image(sys.argv[2])
+            if data is None:
+                print("Math image not found.")
+            else:
+                sys.stdout.write(data)
         else:
             backend.storage_init_read('./')
             prefix = sys.argv[1].decode('utf-8')
