@@ -32,7 +32,10 @@ import ConfigParser
 
 import evopediautils
 
-__all__ = ["DatafileStorage"]
+__all__ = ["DatafileStorage", "DatafileInitializationError"]
+
+class DatafileInitializationError(Exception):
+    pass
 
 
 class DatafileStorage(object):
@@ -55,13 +58,24 @@ class DatafileStorage(object):
             self.math_index_file = None
             self.math_data_file = None
 
-        parser = ConfigParser.RawConfigParser()
-        parser.read(os.path.join(directory, 'metadata.txt'))
+        self.check_existence_of_dumpfiles()
 
-        self.dump_date = parser.get('dump', 'date')
-        self.dump_language = parser.get('dump', 'language')
-        self.dump_orig_url = parser.get('dump', 'orig_url')
-        self.dump_version = parser.get('dump', 'version')
+        parser = ConfigParser.RawConfigParser()
+        try:
+            parser.read(os.path.join(directory, 'metadata.txt'))
+        except:
+            raise DatafileInitializationError("Error parsing metadata file.")
+            # XXX also add original exception
+
+        try:
+            self.dump_date = parser.get('dump', 'date')
+            self.dump_language = parser.get('dump', 'language')
+            self.dump_orig_url = parser.get('dump', 'orig_url')
+            self.dump_version = parser.get('dump', 'version')
+        except:
+            raise DatafileInitializationError("Invalid metadata file.")
+            # XXX also add original exception
+
         try:
             self.num_articles = parser.get('dump', 'num_articles')
         except:
@@ -74,6 +88,19 @@ class DatafileStorage(object):
         self.titles_file_size = os.path.getsize(self.titles_file)
 
         self.readable = 1
+
+    def check_existence_of_dumpfiles(self):
+        if not os.path.isdir(self.data_dir):
+            raise DatafileInitializationError("Data directory %s not found." %
+                    repr(self.data_dir))
+
+        if not os.path.exists(os.path.join(self.data_dir, 'metadata.txt')):
+            raise DatafileInitializationError("Incomplete Wikipedia dump at "
+                    "%s (metadata.txt missing)." % repr(self.data_dir))
+
+        if not os.path.exists(self.titles_file):
+            raise DatafileInitializationError("Incomplete Wikipedia dump at "
+                    "%s (titles.idx missing)." % repr(self.data_dir))
 
     def initialize_coords(self, parser):
         coordfiles = []
@@ -270,14 +297,24 @@ class DatafileStorage(object):
         if not os.path.exists(metadata_file):
             return (None, None, None)
         parser = ConfigParser.RawConfigParser()
-        parser.read(metadata_file)
+        try:
+            parser.read(metadata_file)
+        except Exception, e:
+            # XXX add original exception
+            raise DatafileInitializationError(
+                    "Error parsing metadata file: %s" % e)
         num_articles = None
         try:
             num_articles = parser.get('dump', 'num_articles')
         except:
             pass
-        return (parser.get('dump', 'date'), parser.get('dump', 'language'),
-                num_articles)
+        try:
+            return (parser.get('dump', 'date'), parser.get('dump', 'language'),
+                    num_articles)
+        except Exception, e:
+            # XXX add original exception
+            raise DatafileInitializationError(
+                    "Invalid metadata file: %s" % e)
     # --- end of storage interface ---
 
     def transform_path_from_v2(self, pathname):

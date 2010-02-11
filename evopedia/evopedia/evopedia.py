@@ -237,10 +237,13 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.wfile.write('<h2>Please choose data directory</h2>')
         self.wfile.write('<h3>%s</h3>' % saxutils.escape(path.encode('utf-8')))
 
-        (date, language) = (None, None)
+        date = language = num_articles = error = None
         try:
             (date, language, num_articles) = storage_class.get_metadata(path)
-        except:
+        except Exception, e:
+            error = "<p>This directory could contain a broken " \
+                    "Wikipedia dump.<br />" \
+                    "Error reading metadata file:<br />%s" % saxutils.escape(str(e))
             import traceback
             traceback.print_exc()
             pass
@@ -254,6 +257,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     '%s, language: %s%s</a>') %
                     (quote(path.encode('utf-8')), date,
                      language, num_articles))
+        if error is not None:
+            self.wfile.write(error.encode('utf-8'))
 
         self.wfile.write('<ul>')
         for f in ['..'] + sorted([d for d in os.listdir(path)
@@ -448,10 +453,17 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             data_dir = dict['path'][0]
             print "Changing datafile storage to %s." % data_dir
             global storage_class
-            from datafile_storage import DatafileStorage
+            from datafile_storage import DatafileStorage, \
+                                DatafileInitializationError
             storage_class = DatafileStorage
             storage = DatafileStorage()
-            storage.storage_init_read(data_dir)
+            try:
+                storage.storage_init_read(data_dir)
+            except Exception, e:
+                self.output_error_msg_page('Error opening datafile storage '
+                        'at %s:<br />%s' % (data_dir, str(e)))
+                return
+
             if storage.is_readable():
                 global config
                 global configfile
@@ -821,12 +833,12 @@ def start_server():
     global storage
     global storage_class
     print "Using datafile storage."
-    from datafile_storage import DatafileStorage
+    from datafile_storage import DatafileStorage, DatafileInitializationError
     storage_class = DatafileStorage
     storage = DatafileStorage()
     try:
         storage.storage_init_read(data_dir)
-    except ConfigParser.NoSectionError:
+    except DatafileInitializationError:
         print("Error opening storage.")
         import traceback
         traceback.print_exc()

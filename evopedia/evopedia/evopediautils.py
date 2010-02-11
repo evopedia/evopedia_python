@@ -211,12 +211,14 @@ def parse_coordinates_zoom(zoomstr):
                 return default
         else:
             type = m.group(2) + m.group(3)
-            print type
             try:
                 scale = geo_scale_by_type[type]
             except KeyError:
                 return default
 
-        zoom = round(28.7253 - math.log(scale, 2))
+        try:
+            zoom = round(28.7253 - math.log(scale, 2))
+        except OverflowError:
+            zoom = default
         return int(max(2, min(18, zoom)))
 
