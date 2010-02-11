@@ -715,6 +715,8 @@ class TileRepo(object):
         print("Fetching tile %s..." % url)
         content = urllib2.urlopen(url).read()
 
+# XXX in maemo, don't do this as long as MyDocs is not mounted...
+
         tiledir = os.path.join(self.tilepath, str(zoom), str(x))
         if not os.path.exists(tiledir):
             os.makedirs(tiledir)
@@ -814,6 +816,14 @@ def start_server():
     address = config.get('evopedia', 'listen_address')
     use_gps = config.get('evopedia', 'use_gps')
     repostring = config.get('evopedia', 'maptile_repositories')
+    if repostring == '':
+        config.set('evopedia', 'maptile_repositories',
+                get_default_repositories())
+        try:
+            with open(configfile_expanded), 'wb') as f:
+                config.write(f)
+        except:
+            print("Unable to write config file.")
     data_dir = config.get('evopedia', 'data_directory')
 
     data_dir = os.path.expanduser(data_dir)
