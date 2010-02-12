@@ -336,11 +336,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             pos = gps_handler.release_gps()
 
         # the following is not available before Python 2.6
+        # so we need to do it the hard way.
+        # better ideas?
         try:
             self.server.shutdown()
         except AttributeError:
-            import sys
-            sys.exit(0)
+            os._exit(0)
 
     def decode(self, s):
         try:
