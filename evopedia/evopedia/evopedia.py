@@ -53,6 +53,8 @@ storage_class = None
 tile_repository = None
 gps_handler = None
 
+EVOPEDIA_VERSION = 'Evopedia 0.3.0 RC 3'
+
 try:
     math.atanh(0)
 except AttributeError:
@@ -380,11 +382,12 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 else:
                     num_articles = ''
                 data = data.replace("EVOPEDIA_INFO",
-                            ('<a href="%s">Wikipedia</a>, ' +
-                                    '<a href="/choose_data">%s (%s)%s</a>') %
+                            ('<a href="%s">Wikipedia (%s)</a>, ' +
+                                    '<a href="/choose_data">%s%s</a> '
+                                    '<small>via ' + EVOPEDIA_VERSION + '</small>') %
                             (storage.get_orig_url(''),
-                                 storage.get_date(),
                                  storage.get_language(),
+                                 storage.get_date(),
                                  num_articles))
                 self.wfile.write(data)
             return
