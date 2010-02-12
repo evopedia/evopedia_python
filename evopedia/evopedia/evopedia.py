@@ -60,6 +60,7 @@ try:
 except AttributeError:
     math.atanh = lambda x: .5 * (math.log(1 + x) - math.log(1 - x))
 
+
 class EvopediaHandler(BaseHTTPRequestHandler):
     TILESIZE = 256
     map_width = 400
@@ -177,8 +178,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                                                              maxcoords):
             (x, y) = self.coords2pixel(zoom, (lat, lon))
             text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
-                    (saxutils.escape(name.replace('_', ' ').encode('utf-8')), x, y,
-                    pathname2url('/wiki/' + name.encode('utf-8')))
+                    (saxutils.escape(name.replace('_', ' ').encode('utf-8')),
+                    x, y, pathname2url('/wiki/' + name.encode('utf-8')))
             self.wfile.write(text)
             articlecount += 1
             if articlecount >= 15:
@@ -249,7 +250,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                             (quote(path_cur.encode('utf-8')),
                                 saxutils.escape(path_part.encode('utf-8')))]
             path_cur = path_next
-        
+
         self.wfile.write('<h3>%s</h3>' %
                             ('/' + '/'.join(reversed(path_parts))))
 
@@ -259,7 +260,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         except Exception, e:
             error = "<p>This directory could contain a broken " \
                     "Wikipedia dump.<br />" \
-                    "Error reading metadata file:<br />%s" % saxutils.escape(str(e))
+                    "Error reading metadata file:<br />%s" % \
+                            saxutils.escape(str(e))
             import traceback
             traceback.print_exc()
             pass
@@ -340,7 +342,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             import sys
             sys.exit(0)
 
-
     def decode(self, s):
         try:
             s = s.decode('utf-8')
@@ -383,8 +384,9 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     num_articles = ''
                 data = data.replace("EVOPEDIA_INFO",
                             ('<a href="%s">Wikipedia (%s)</a>, ' +
-                                    '<a href="/choose_data">%s%s</a> '
-                                    '<small>via ' + EVOPEDIA_VERSION + '</small>') %
+                                '<a href="/choose_data">%s%s</a> '
+                                '<small>via ' + EVOPEDIA_VERSION +
+                                            '</small>') %
                             (storage.get_orig_url(''),
                                  storage.get_language(),
                                  storage.get_date(),
@@ -552,6 +554,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
 
 class GPSHandler(object):
+
     def __init__(self):
         self.gps_activated = False
         self.last_gps_usage = 0
@@ -657,6 +660,7 @@ class GPSHandlerGypsy(GPSHandler):
         print("Releasing GPS...")
         self.ousaged.ReleaseResource("GPS")
 
+
 class GPSHandlerLiblocation(GPSHandler):
 
     def __init__(self):
@@ -729,9 +733,11 @@ class TileRepo(object):
             return False
         # some special remote tile handlers copied from the tangogps source
         if self.tileurl in ('maps-for-free', 'openaerial'):
-            request_handler.write_header(content_type='image/jpeg', expires=True)
+            request_handler.write_header(
+                    content_type='image/jpeg', expires=True)
         else:
-            request_handler.write_header(content_type='image/png', expires=True)
+            request_handler.write_header(
+                    content_type='image/png', expires=True)
         request_handler.wfile.write(image)
         return True
 

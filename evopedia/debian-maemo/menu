@@ -1,2 +1,0 @@
-?package(evopedia):needs="X11" section="Applications/Network/Web Browsing"\
-  title="evopedia" command="evopedia_gui.sh"

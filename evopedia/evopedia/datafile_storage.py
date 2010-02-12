@@ -34,6 +34,7 @@ import evopediautils
 
 __all__ = ["DatafileStorage", "DatafileInitializationError"]
 
+
 class DatafileInitializationError(Exception):
     pass
 
@@ -366,7 +367,8 @@ class DatafileStorage(object):
                         mintarget[1] <= lon <= maxtarget[1]):
                     continue
                 titlesf.seek(title_pos, os.SEEK_SET)
-                (title, articlepos) = self.titleentry_decode(titlesf.readline())
+                (title, articlepos) = self.titleentry_decode(
+                                                titlesf.readline())
                 yield (title, lat, lon)
 
     def get_article_by_pos(self, articlepos):
@@ -745,7 +747,8 @@ if __name__ == "__main__":
             print backend.get_article_by_name(sys.argv[2].decode('utf-8'))
         elif sys.argv[1] == '--searchgeo':
             backend.storage_init_read('./')
-            (minlat, maxlat, minlon, maxlon) = (float(x) for x in sys.argv[2:6])
+            (minlat, maxlat, minlon, maxlon) = \
+                        (float(x) for x in sys.argv[2:6])
             titles = backend.titles_in_coords((minlat, minlon),
                                               (maxlat, maxlon))
             for (title, lat, lon) in titles:

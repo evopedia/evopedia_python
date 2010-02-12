@@ -129,26 +129,27 @@ def normalize(str):
     return str2
 
 geo_scale_by_type = {
-      'country':    10000000,
-      'satellite':  10000000,  
-      'state':       3000000,
-      'adm1st':      1000000,
-      'adm2nd':       300000,
-      'default':      300000,
-      'adm3rd':       100000,
-      'city':         100000,
-      'mountain':     100000,
-      'isle':         100000,
-      'river':        100000,
-      'waterbody':    100000,
-      'event':         50000,
-      'forest':        50000,
-      'glacier':       50000,
-      'airport':       30000,
-      'edu':           10000,
-      'pass':          10000,
-      'landmark':      10000,
-      'railwaystation':10000 }
+      'country':     10000000,
+      'satellite':   10000000,
+      'state':        3000000,
+      'adm1st':       1000000,
+      'adm2nd':        300000,
+      'default':       300000,
+      'adm3rd':        100000,
+      'city':          100000,
+      'mountain':      100000,
+      'isle':          100000,
+      'river':         100000,
+      'waterbody':     100000,
+      'event':          50000,
+      'forest':         50000,
+      'glacier':        50000,
+      'airport':        30000,
+      'edu':            10000,
+      'pass':           10000,
+      'landmark':       10000,
+      'railwaystation': 10000}
+
 
 def parse_coordinates_in_article(text, parse_zoom=True):
     """Search article text for geo link and return parsed coordinates
@@ -168,7 +169,7 @@ def parse_coordinates_in_article(text, parse_zoom=True):
             v = float(v)
         except ValueError:
             continue
-        lat += v * (60.0 ** -(i - 1))
+        lat += v * (60.0 ** - (i - 1))
     if m.group(4) == 'S':
         lat = - lat
 
@@ -179,7 +180,7 @@ def parse_coordinates_in_article(text, parse_zoom=True):
             v = float(v)
         except ValueError:
             continue
-        lng += v * (60.0 ** -(i - 5))
+        lng += v * (60.0 ** - (i - 5))
     if m.group(8) == 'W':
         lng = - lng
 
@@ -188,6 +189,7 @@ def parse_coordinates_in_article(text, parse_zoom=True):
     else:
         zoom = None
     return (lat, lng, zoom)
+
 
 def parse_coordinates_zoom(zoomstr):
     """Guess zoom value in zoomstr as defined in https://wiki.toolserver.org/view/GeoHack"""
@@ -221,4 +223,3 @@ def parse_coordinates_zoom(zoomstr):
         except OverflowError:
             zoom = default
         return int(max(2, min(18, zoom)))
-
