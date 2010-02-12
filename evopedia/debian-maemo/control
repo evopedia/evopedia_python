@@ -2,13 +2,14 @@ Source: evopedia
 Section: user/education
 Priority: extra
 Maintainer: Christian Reitwiessner <christian@exinto.de>
-Build-Depends: debhelper (>= 4)
+Build-Depends: debhelper7, python-support, python-all
 Standards-Version: 3.7.2.2
 Homepage: http://www.reitwiessner.de/openmoko/evopedia.html
 
 Package: evopedia
 Architecture: all
 Depends: ${python:Depends}, ${misc:Depends}, dbus
+Suggests: pyton-location
 XB-Python-Version: ${python:Versions}
 XSBC-Bugtracker: https://bugs.maemo.org/enter_bug.cgi?product=evopedia
 Description: Offline Wikipedia Viewer.

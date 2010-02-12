@@ -1,6 +1,12 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
+PATH:=/usr/bin/dh7:/usr/bin:$(PATH)
+export PATH
+SBOX_REDIRECT_IGNORE=/usr/bin/perl
+SBOX_REDIRECT_IGNORE := /usr/bin/python
+export SBOX_REDIRECT_IGNORE
+
 %:
-	dh --with quilt $@
+	dh $@
 

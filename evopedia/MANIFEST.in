@@ -1,5 +1,4 @@
 include setup.py
-include evopedia.conf
 include *.py
 include *.sh
 recursive-include evopedia *.py

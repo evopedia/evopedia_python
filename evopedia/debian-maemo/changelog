@@ -1,4 +1,13 @@
-evopedia (0.2.99+0.3rc2-1) UNRELEASED; urgency=low
+evopedia (0.2.99+3.0rc3) UNRELEASED; urgency=low
+
+  [ Christian Reitwießner ]
+  * GPS usage optimized
+  * math images feature for packager and software
+  * adjust zoom when going to current GPS position
+
+ -- Christian Reitwiessner <christian@exinto.de>  Fri, 08 Jan 2010 19:47:37 +0100
+
+evopedia (0.2.99+3.0rc2-1) UNRELEASED; urgency=low
 
   [ Adam Schmalhofer ]
   * Packaging, distutils
@@ -8,7 +17,7 @@ evopedia (0.2.99+0.3rc2-1) UNRELEASED; urgency=low
 
  -- Adam Schmalhofer <Adam.Schmalhofer@gmx.de>  Fri, 5 Feb 2010 20:00:00 +0100
 
-evopedia (0.2.99+0.3rc2) UNRELEASED; urgency=low
+evopedia (0.2.99+3.0rc2) UNRELEASED; urgency=low
 
   [ Johannes Lötzsch ]
   * Added link to original Wikipedia article.
