@@ -350,7 +350,7 @@ MapHandler.prototype = {
             return;
         }
 
-        this.updateMap(this.gps_pos[0], this.gps_pos[1], 12);
+        this.zoomTo(this.gps_pos[0], this.gps_pos[1], 14);
     },
 
     containerClicked: function(e) {
@@ -381,25 +381,31 @@ MapHandler.prototype = {
 
 
     zoomDelta: function(delta) {
-        if (this.zoom + delta > 18) {
-            delta = 18 - this.zoom;
-        } else if (this.zoom + delta < 1) {
-            delta = 1 - this.zoom;
+        var z = this.zoom + delta;
+        if (z > 18) {
+            z = 18;
+        } else if (z < 1) {
+            z = 1;
         }
 
-        var zoom;
+        this.zoomTo(this.centerx, this.centery, z);
+    },
+
+    zoomTo: function(x, y, z) {
+        /* zooms to (x, y) at current zoom level and sets zoom level to z
+         * afterwards */
+        var delta = z - this.zoom;
         var centerx;
-        var centery
-        zoom = this.zoom + delta;
+        var centery;
         if (delta > 0) {
-            centerx = this.centerx * (1 << delta);
-            centery = this.centery * (1 << delta);
+            centerx = x * (1 << delta);
+            centery = y * (1 << delta);
         } else {
-            centerx = this.centerx / (1 << (-delta));
-            centery = this.centery / (1 << (-delta));
+            centerx = x / (1 << (-delta));
+            centery = y / (1 << (-delta));
         }
 
-        this.updateMap(centerx, centery, zoom);
+        this.updateMap(centerx, centery, z);
     },
 
     browserResized: function() {
