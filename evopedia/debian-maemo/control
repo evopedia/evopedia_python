@@ -8,8 +8,9 @@ Homepage: http://www.reitwiessner.de/openmoko/evopedia.html
 
 Package: evopedia
 Architecture: all
-Depends: ${python:Depends}, ${misc:Depends}
+Depends: ${python:Depends}, ${misc:Depends}, dbus
 XB-Python-Version: ${python:Versions}
+XSBC-Bugtracker: https://bugs.maemo.org/enter_bug.cgi?product=evopedia
 Description: Offline Wikipedia Viewer.
  Evopedia uses compressed dumps of Wikipedia for offline use
  especially on embedded devices.
