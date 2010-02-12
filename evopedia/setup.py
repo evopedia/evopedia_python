@@ -11,6 +11,8 @@ are not contained in the dump but if you are connected to the internet, they
 are nevertheless shown.
 """
 
+import sys
+import subprocess
 from distutils.core import setup
 from glob import glob
 
@@ -37,6 +39,15 @@ def main():
                     ('share/evopedia/static', glob('static/*'))],
     )
 
-if __name__ == '__main__':
-    main()
 
+def make_opkg(path):
+    print 'building opkg'
+    subprocess.call([sys.argv[0], 'install', '--prefix=%s/usr' % path])
+    subprocess.call(['cp', '-a', 'opkg', '%s/CONTROL' % path])
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 2 and sys.argv[1] == 'opkg':
+        make_opkg('../package-openmoko')
+    else:
+        main()
