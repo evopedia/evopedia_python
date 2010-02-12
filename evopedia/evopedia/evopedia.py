@@ -235,7 +235,21 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                         'select this folder here.</h2>')
         else:
             self.wfile.write('<h2>Please choose data directory</h2>')
-        self.wfile.write('<h3>%s</h3>' % saxutils.escape(path.encode('utf-8')))
+
+        # make every part of the current path clickable
+        path_parts = []
+        path_cur = path
+        while path_cur != '' and path_cur != '/':
+            (path_next, path_part) = os.path.split(path_cur)
+            if path_part == '':
+                continue
+            path_parts += ['<a href="/choose_data?path=%s">%s</a></li>' %
+                            (quote(path_cur.encode('utf-8')),
+                                saxutils.escape(path_part.encode('utf-8')))]
+            path_cur = path_next
+        
+        self.wfile.write('<h3>%s</h3>' %
+                            ('/' + '/'.join(reversed(path_parts))))
 
         date = language = num_articles = error = None
         try:
@@ -261,18 +275,23 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.wfile.write(error.encode('utf-8'))
 
         self.wfile.write('<ul>')
-        for f in ['..'] + sorted([d for d in os.listdir(path)
-                                        if not d.startswith('.')]):
-            dir = os.path.join(path, f)
-            if not os.path.isdir(dir):
-                continue
-            quotedpath = quote(dir)
-            quotedname = saxutils.escape(f)
-            if f == '..':
-                quotedname = 'parent directory'
-            text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
-                                        quotedpath, quotedname)
-            self.wfile.write(text)
+        text = ('<li><a href="/choose_data?path=%s/..">..</a></li>'
+                        % quote(path.encode('utf-8')))
+        self.wfile.write(text.encode('utf-8'))
+
+        try:
+            for f in sorted([d for d in os.listdir(path)
+                                            if not d.startswith('.')]):
+                dir = os.path.join(path, f)
+                if not os.path.isdir(dir):
+                    continue
+                quotedpath = quote(dir.encode('utf-8'))
+                quotedname = saxutils.escape(f)
+                text = '<li><a href="/choose_data?path=%s">%s</a></li>' % (
+                                            quotedpath, quotedname)
+                self.wfile.write(text.encode('utf-8'))
+        except OSError:
+            self.wfile.write('Could not list directory.')
 
         self.wfile.write('</ul>')
         with open(os.path.join(static_path, 'footer.html')) as foot:
