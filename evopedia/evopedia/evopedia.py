@@ -474,7 +474,9 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.send_header('Location', '/')
             self.end_headers()
             return
-        elif parts[0] == 'math':
+        elif parts[0] == 'math' or (
+                        parts[0] == 'wiki' and parts[1] == 'math'):
+            # second case is workaround for bug in dumps
             if not storage.is_readable():
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
@@ -820,7 +822,7 @@ def start_server():
         config.set('evopedia', 'maptile_repositories',
                 get_default_repositories())
         try:
-            with open(configfile_expanded), 'wb') as f:
+            with open(configfile_expanded, 'wb') as f:
                 config.write(f)
         except:
             print("Unable to write config file.")
