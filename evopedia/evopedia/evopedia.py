@@ -293,6 +293,33 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     time.gmtime(exp_time)))
         self.end_headers()
 
+    def do_exit(self):
+        global static_path
+        global gps_handler
+
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        with open(os.path.join(static_path, 'header.html')) as head:
+            shutil.copyfileobj(head, self.wfile)
+        self.wfile.write("</div><h2>Closing Evopedia</h2>")
+        self.wfile.write("<p>Releasing GPS (if used) and "
+                        "shutting down server.</p>")
+        self.wfile.write("<p>You can close the browser window now.</p>")
+        with open(os.path.join(static_path, 'footer.html')) as foot:
+            shutil.copyfileobj(foot, self.wfile)
+
+        if gps_handler is not None:
+            pos = gps_handler.release_gps()
+
+        # the following is not available before Python 2.6
+        try:
+            self.server.shutdown()
+        except AttributeError:
+            import sys
+            sys.exit(0)
+
+
     def decode(self, s):
         try:
             s = s.decode('utf-8')
@@ -496,19 +523,14 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.output_wiki_page(url)
             return
         elif parts[0] == 'exit':
-            # the following is not available before Python 2.6
-            try:
-                self.server.shutdown()
-            except AttributeError:
-                import sys
-                sys.exit(0)
+            self.do_exit()
+            return
 
         self.output_error_page()
 
 
 class GPSHandler(object):
     def __init__(self):
-        self.gps_release_timer = None
         self.gps_activated = False
         self.last_gps_usage = 0
 
@@ -534,13 +556,6 @@ class GPSHandler(object):
             self.gps_activated = True
 
         return self.get_gps_pos_internal()
-
-    def update_gps_release_timer(self):
-        # XXX don't use timer but interval that checks the last usage timestamp
-        if self.gps_release_timer is not None:
-            self.gps_release_timer.cancel()
-        self.gps_release_timer = threading.Timer(5 * 60, self.release_gps)
-        self.gps_release_timer.start()
 
     @staticmethod
     def handler_factory():

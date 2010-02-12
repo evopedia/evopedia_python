@@ -111,6 +111,7 @@ function MapHandler(zoom, centerx, centery, repos) {
 
     this.lastArticleRequest = null;
 
+    this.zoomToGPSPosUsed = false;
     document.getElementById('gpspos').onclick = function() { lthis.zoomToGPSPos(); return false; }
     document.getElementById('zoomin').onclick = function() { lthis.zoomDelta(1); return false; }
     document.getElementById('zoomout').onclick = function() { lthis.zoomDelta(-1); return false; }
@@ -289,6 +290,7 @@ MapHandler.prototype = {
 
     updateGPSPosition: function() {
         var lthis = this;
+        if (!this.zoomToGPSPosUsed) return;
         makeHTTPRequest(makeURL('/gpspos', {zoom: this.zoom}),
                 function(request) { lthis.updateGPSPositionResponse(request); });
     },
@@ -342,6 +344,8 @@ MapHandler.prototype = {
     },
 
     zoomToGPSPos: function() {
+        this.zoomToGPSPosUsed = true;
+        this.updateGPSPosition();
         if (this.gps_pos === null) {
             return;
         }
