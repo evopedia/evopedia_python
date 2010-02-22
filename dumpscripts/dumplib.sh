@@ -24,8 +24,8 @@ createTables()
 {
         PREFIX="$1"
         echo "(Re-)creating db tables for prefix \"$PREFIX""\"."
-        cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
-        cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
+        cat "$SCRIPTDIR/wikidb.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+        cat "$SCRIPTDIR/wikipedia-interwiki.sql" | sed -e 's/__PREFIX__/'"$PREFIX"'/' | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
 }
 
 
@@ -49,9 +49,31 @@ importLanguage()
         for x in page revision text
         do
                 echo "Importing table $x..."
+                echo "FLUSH TABLE $PREFIX$x;" | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+                echo "...disabling keys"
+                DBFILE="$MYSQLDIR/$PREFIX$x"
+                $SUDOCMD myisamchk -r --keys-used=0 "$DBFILE"
+
+                echo "...importing data"
                 DUMPFILE="$IMPORTTEMPDIR/$PREFIX""$x.txt"
                 [ x"$PREFIX" != x ] && mv "$IMPORTTEMPDIR/$x.txt" "$DUMPFILE"
-                mysqlimport "$MYSQL_OPTS" -u "$dbuser" --password="$password" "$database" "$DUMPFILE"
+                echo "FLUSH TABLE $PREFIX$x;" | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+                mysqlimport $MYSQL_OPTS -d -u "$dbuser" --password="$password" "$database" "$DUMPFILE"
+                echo "FLUSH TABLE $PREFIX$x;" | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+
+                echo "...packing table"
+                $SUDOCMD myisampack "$DBFILE"
+
+                echo "...creating indexes"
+                $SUDOCMD myisamchk -r -q \
+                    --sort_buffer_size=1024M \
+                    --read_buffer=3M \
+                    --write_buffer=3M \
+                    --tmpdir=/tmp \
+                    "$DBFILE"
+
+                echo "FLUSH TABLE $PREFIX$x;" | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+                echo "done"
                 rm "$DUMPFILE"
         done
 
@@ -60,20 +82,50 @@ importLanguage()
         if [ x"$PREFIX" != x ]
         then
                 echo "DROP TABLE IF EXISTS image_switch_temp;"
+                # create table to avoid error for rename
+                echo "CREATE TABLE IF NOT EXISTS image LIKE $PREFIX""image;"
+                echo "DROP TABLE IF EXISTS image_switch_temp;"
                 echo "RENAME TABLE image TO image_switch_temp;"
                 echo "RENAME TABLE $PREFIX""image TO image;"
         fi
+        echo "FLUSH TABLE image;"
+        ) | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database";
 
+        echo "...disabling keys"
+        DBFILE="$MYSQLDIR/image"
+        $SUDOCMD myisamchk -r --keys-used=0 "$DBFILE"
+
+        echo "...importing data"
+
+        (
         gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-image.sql.gz" | \
         awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
         # remove the drop and recreate table (with potentially different engine) statements
+        echo "FLUSH TABLE image;"
+        ) | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+
+        echo "...packing table"
+        $SUDOCMD myisampack "$DBFILE"
+
+        echo "...creating indexes"
+        $SUDOCMD myisamchk -r -q \
+            --sort_buffer_size=1024M \
+            --read_buffer=3M \
+            --write_buffer=3M \
+            --tmpdir=/tmp \
+            "$DBFILE"
+
+        (
+        echo "FLUSH TABLE image;"
 
         if [ x"$PREFIX" != x ]
         then
                 echo "RENAME TABLE image TO $PREFIX""image;"
                 echo "RENAME TABLE image_switch_temp TO image;"
         fi
-        ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
+        echo "FLUSH TABLE $PREFIX""image;"
+        ) | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
+        echo "done"
 
         if [ "$LANG" != commons ]
         then
@@ -82,12 +134,12 @@ importLanguage()
             gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-category.sql.gz" | \
             awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
             # remove the drop and recreate table (with potentially different engine) statements
-            ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
+            ) | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
             (
             gunzip -c < "$SOURCEDUMPDIR/$LANG/wiki-latest-categorylinks.sql.gz" | \
             awk -- '/DROP TABLE/,/-- Dumping data/ {next}; {print};'
             # remove the drop and recreate table (with potentially different engine) statements
-            ) | mysql "$MYSQL_OPTS" -u "$dbuser" --password=$password "$database"
+            ) | mysql $MYSQL_OPTS -u "$dbuser" --password=$password "$database"
 
             WIKIUSERSETTINGS='$wgDBname = "'"$database"'"; $wgDBuser = "'"$dbuser"'"; $wgDBpassword = "'"$password"'";'
 

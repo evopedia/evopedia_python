@@ -6,6 +6,9 @@ password=PASSWORD
 database=wikidb
 MYSQL_OPTS=""
 
+# SUDOCMD is used to access the database files directly
+SUDOCMD="sudo"
+MYSQLDIR="/var/lib/mysql/wikidb"
 # directory where the git repository is checked out
 REPODIR="/home/user/evopedia/"
 LIBDIR="$REPODIR/evopedia/"
