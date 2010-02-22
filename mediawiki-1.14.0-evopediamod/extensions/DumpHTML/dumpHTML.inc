@@ -881,7 +881,7 @@ class DumpHTML {
 		$wgHideInterlanguageLinks = !$this->interwiki;
 		$wgThumbnailScriptPath = false;
                 $wgEnableParserCache = false;
-                $wgMathPath = "math";
+                $wgMathPath = "/math";
                 $wgMathDirectory = $this->dest . "/math/";
 		$wgEnableSidebarCache = false;
 		$wgGenerateThumbnailOnParse = false;
