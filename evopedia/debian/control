@@ -3,24 +3,21 @@ Section: web
 Priority: extra
 Maintainer: Adam Schmalhofer <Adam.Schmalhofer@gmx.de>
 Build-Depends: debhelper (>= 7.0.50~), python-support, python-all, quilt
-Standards-Version: 3.8.3
+Standards-Version: 3.8.4
 XS-Python-Version: all
 Homepage: http://www.reitwiessner.de/openmoko/evopedia.html
 
 Package: evopedia
 Architecture: all
 Depends: ${python:Depends}, ${misc:Depends}
-Suggests: tangogps
+Suggests: tangogps | python-location
 XB-Python-Version: ${python:Versions}
-Description: Offline Wikipedia Viewer for OpenMoko
- Evopedia is a static dump of Wikipedia packed inside a compressed image for
- offline use on almost any Linux device - especially on the Openmoko
- Freerunner.
+Description: Offline Wikipedia Viewer
+ Evopedia uses compressed dumps of Wikipedia for offline use
+ especially on embedded devices.
  .
  The geographical data in the articles is used to display a map of these
- articles. This map automagically uses your saved tiles from tangoGPS if you
- are offline and Openstreetmap tiles if you are online. The images on Wikipedia
- are not contained in the dump but if you are connected to the internet, they
- are nevertheless shown. The project is based on the (abandoned) Mokopedia
- project.
-
+ articles. This map automagically uses your saved tiles from maep or tangogpw
+ if you are offline and Openstreetmap tiles if you are online. The images on
+ Wikipedia are not contained in the dump but if you are connected to the
+ internet, they are nevertheless shown.

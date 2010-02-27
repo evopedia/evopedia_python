@@ -1,0 +1,25 @@
+Index: evopedia/setup.py
+===================================================================
+--- evopedia.orig/setup.py	2010-02-27 14:11:54.000000000 +0100
++++ evopedia/setup.py	2010-02-27 14:12:23.000000000 +0100
+@@ -32,7 +32,7 @@
+             'Programming Language :: Python'],
+         scripts=['evopedia_starter.py', 'evopedia.sh'],
+         packages=['evopedia'],
+-        data_files=[('share/applications', ['evopedia.desktop']),
++        data_files=[('share/applications/hildon', ['evopedia.desktop']),
+                     ('share/pixmaps', ['wikipedia.png']),
+                     ('share/evopedia/static', glob('static/*'))],
+     )
+Index: evopedia/evopedia.desktop
+===================================================================
+--- evopedia.orig/evopedia.desktop	2010-02-27 14:13:37.000000000 +0100
++++ evopedia/evopedia.desktop	2010-02-27 14:06:18.000000000 +0100
+@@ -6,6 +6,5 @@
+ Comment=Offline Wikipedia Reader
+ Exec=/usr/bin/evopedia.sh
+ Categories=Utility
+-Icon=/usr/share/pixmaps/wikipedia.png
++Icon=wikipedia
+ Terminal=false
+-
