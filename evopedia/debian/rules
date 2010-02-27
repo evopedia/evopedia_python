@@ -7,7 +7,7 @@ export PATH
 SBOX_REDIRECT_IGNORE:=/usr/bin/perl
 SBOX_REDIRECT_IGNORE += /usr/bin/python
 export SBOX_REDIRECT_IGNORE
-export QUILT_PATCHES := "debian/patches.maemo"
+export QUILT_PATCH_DIR := "debian/patches.maemo"
 endif
 
 %:
