@@ -11,7 +11,7 @@ SUDOCMD="sudo"
 MYSQLDIR="/var/lib/mysql/wikidb"
 # directory where the git repository is checked out
 REPODIR="/home/user/evopedia/"
-LIBDIR="$REPODIR/evopedia/"
+LIBDIR="$REPODIR/evopedia/evopedia/"
 SCRIPTDIR="$REPODIR/dumpscripts/"
 MEDIAWIKIDIR="$REPODIR/mediawiki-1.14.0-evopediamod/"
 
