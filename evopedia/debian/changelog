@@ -1,3 +1,10 @@
+evopedia (0.3~rc3+1) UNRELEASED; urgency=low
+
+  * Fixed version numbering
+  * Merged packaging of Maemo and Debian proper
+
+ -- Adam Schmalhofer <Adam.Schmalhofer@gmx.de>  Sat, 27 Feb 2010 14:57:38 +0100
+
 evopedia (0.2.99+0.3rc3) UNRELEASED; urgency=low
 
   [ Christian Reitwießner ]
@@ -17,7 +24,7 @@ evopedia (0.2.99+0.3rc2-1) UNRELEASED; urgency=low
 
  -- Adam Schmalhofer <Adam.Schmalhofer@gmx.de>  Fri, 5 Feb 2010 20:00:00 +0100
 
-evopedia (0.2.99+0.3rc2) UNRELEASED; urgency=low
+evopedia (0.2.99+3.0rc2) UNRELEASED; urgency=low
 
   [ Johannes Lötzsch ]
   * Added link to original Wikipedia article.

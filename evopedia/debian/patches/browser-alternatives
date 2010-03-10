@@ -1,0 +1,10 @@
+Index: evopedia/evopedia.sh
+===================================================================
+--- evopedia.orig/evopedia.sh	2010-02-27 15:21:50.000000000 +0100
++++ evopedia/evopedia.sh	2010-02-27 15:22:29.000000000 +0100
+@@ -3,4 +3,4 @@
+ 
+ /usr/bin/evopedia_starter.py &
+ 
+-/usr/bin/midori http://127.0.0.1:8080
++/usr/bin/x-www-browser http://127.0.0.1:8080
