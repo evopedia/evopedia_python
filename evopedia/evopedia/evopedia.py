@@ -544,7 +544,14 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
                 return
+
             url = '/'.join(parts[1:])
+
+            if parts[-1].startswith("File:"):
+                self.send_response(302)
+                self.send_header('Location', storage.get_orig_url(url))
+                return
+
             self.output_wiki_page(url)
             return
         elif parts[0] == 'exit':

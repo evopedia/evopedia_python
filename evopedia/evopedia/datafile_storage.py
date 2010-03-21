@@ -500,6 +500,95 @@ class DatafileStorage(object):
         finally:
             datafile.close()
 
+    def tidy_article(self, data):
+        import re
+        try:
+            self._if_tidy_re
+        except AttributeError:
+            self._if_tidy_re = re.compile(r'{{#if:.*?\|\s*\|\s*}}', flags=re.DOTALL)
+
+        if '{{#if:' in data:
+            data = self._if_tidy_re.sub('', data)
+        #if '{{' in data or '}}' in data:
+        #    print "Strange string in data: %s" % data
+        if '<strong class="error">' in data:
+            data = re.sub(r'<strong class="error">.*?</strong> ', '', data)
+
+        return data
+
+    def walk_through_archives(self, dir):
+        # XXX make that work with zip archives, too
+        import tarfile
+
+        for (dirpath, dirnames, filenames) in os.walk(dir):
+            archives = []
+            real_files = []
+            for f in filenames:
+                if f in ('creation_date', 'evopedia_version', 'index.html'):
+                    continue
+                if f.endswith('.tar.gz') or f.endswith('.tgz'):
+                    archives += [f]
+                else:
+                    real_files == [f]
+            if 'coords' in dirnames:
+                dirnames.remove('coords')
+
+            print("%d files, %d archives in dir %s" % (
+                len(real_files), len(archives), repr(dirpath)))
+
+            for fname in real_files:
+                f = os.path.join(dirpath, fname)
+                if os.path.islink(f):
+                    yield ('l', fname, os.readlink(f))
+                else:
+                    with open(f) as fh:
+                        yield ('f', fname, fh.read())
+
+            for f in archives:
+                try:
+                    ar = tarfile.open(os.path.join(dirpath, f))
+                    print("Entering archive %s..." % f)
+                    for x in self.walk_archive(ar):
+                        yield x
+                finally:
+                    if ar is not None:
+                        ar.close()
+
+    def walk_archive(self, ar):
+        filecount = 0
+        for f in ar:
+            fbase = os.path.basename(f.name)
+            if f.issym():
+                filecount += 1
+                yield ('l', fbase, f.linkname)
+            elif f.isdir():
+                continue
+            elif not f.isreg():
+                print("Non-regular file %s in archive." % f)
+                continue
+            elif fbase in ('creation_date', 'evopedia_version', 'index.html'):
+                continue
+            elif fbase.endswith('.tar.gz') or fbase.endswith('.tgz'):
+                # ugh, subarchive...
+                with ar.extractfile(f) as fh:
+                    print("Entering sub-archive %s..." % f)
+                    try:
+                        arh = tarfile.open(fileobj=fh)
+                        for x in self.walk_archive(arh):
+                            yield x
+                    finally:
+                        if arh is not None:
+                            arh.close()
+            else:
+                filecount += 1
+                try:
+                    fh = ar.extractfile(f)
+                    yield ('f', fbase, fh.read())
+                finally:
+                    if fh is not None:
+                        fh.close()
+        print("Archive completed, %d files." % (filecount,))
+
     def convert_articles(self, image_dir, write=True):
         datafiles_size = 500 * 1024 * 1024
         block_size = 512 * 1024
@@ -529,65 +618,50 @@ class DatafileStorage(object):
             math_data = open(self.math_data_file, "wb")
             math_data_pos = 0
 
-        for (dirpath, dirnames, filenames) in os.walk(image_dir):
-            if 'coords' in dirnames:
-                dirnames.remove('coords')
-            print("%d files in dir %s" % (len(filenames), repr(dirpath)))
-            for fname in filenames:
-                if fname in ('creation_date', 'evopedia_version',
-                             'index.html'):
-                    continue
-                title = fname
-                if title.endswith('.html') or title.endswith('.redir'):
-                    # old dump software
-                    title = endpattern.sub('', title)
+        for (t, fname, fdata) in self.walk_through_archives(image_dir):
+            title = fname
+            if title.endswith('.html') or title.endswith('.redir'):
+                # old dump software
+                title = endpattern.sub('', title)
 
-                f = os.path.join(dirpath, fname)
-                if os.path.islink(f):
-                    destination = os.path.basename(os.readlink(f))
-                    destination = destination
-                    if destination.endswith('.html'):
-                        destination = os.path.basename(destination)
-                        destination = endpattern.sub('', destination)
-                    titles += [[title, None, destination,
-                                (None, None, None)]]
-                elif fname.endswith('.redir'):
-                    with open(f) as ff:
-                        destination = ff.read()
-                    destination = os.path.basename(destination)
+            if t == 'l':
+                destination = os.path.basename(fdata)
+                if destination.endswith('.html'):
                     destination = endpattern.sub('', destination)
-                    titles += [[title, None, destination,
-                                (None, None, None)]]
-                elif fname.endswith('.png'):
-                    try:
-                        hash = fname[:-4].decode('hex')
-                    except ValueError:
-                        print("Invalid math image name: %s" % fname)
-                        continue
-                    if write:
-                        with open(os.path.join(dirpath, fname), 'rb') as fd:
-                            fdata = fd.read()
-                        images += [hash + struct.pack('<II',
+                titles += [[title, None, destination,
+                            (None, None, None)]]
+            elif fname.endswith('.redir'):
+                destination = os.path.basename(fdata)
+                destination = endpattern.sub('', destination)
+                titles += [[title, None, destination,
+                            (None, None, None)]]
+            elif fname.endswith('.png'):
+                try:
+                    hash = fname[:-4].decode('hex')
+                except ValueError:
+                    print("Invalid math image name: %s" % fname)
+                    continue
+                if write:
+                    images += [hash + struct.pack('<II',
                                             math_data_pos, len(fdata))]
-                        math_data.write(fdata)
-                        math_data_pos += len(fdata)
-                    else:
-                        images += [hash]
+                    math_data.write(fdata)
+                    math_data_pos += len(fdata)
                 else:
-                    num_articles += 1
-                    if write:
-                        with open(os.path.join(dirpath, fname), 'rb') as fd:
-                            fdata = fd.read()
-                        (lat, lng, zoom) = parse_coords(fdata)
-                        article_pos = (art_filenr, art_datafile_pos,
-                                        art_block_pos, len(fdata))
-                        titles += [[title, None, article_pos,
-                                        (lat, lng, zoom)]]
-                        (art_filenr, art_datafile_pos, art_block_pos) = \
-                                article_compressor.send(fdata)
-                    else:
-                        titles += [[title, None, (0, 0, 0, 0),
-                                    (None, None, None)]]
+                    images += [hash]
+            else:
+                num_articles += 1
+                if write:
+                    (lat, lng, zoom) = parse_coords(fdata)
+                    fdata = self.tidy_article(fdata)
+                    article_pos = (art_filenr, art_datafile_pos,
+                                    art_block_pos, len(fdata))
+                    titles += [[title, None, article_pos,
+                                    (lat, lng, zoom)]]
+                    (art_filenr, art_datafile_pos, art_block_pos) = \
+                            article_compressor.send(fdata)
+                else:
+                    titles += [[title, None, (0, 0, 0, 0),
+                                (None, None, None)]]
         if write:
             article_compressor.close()
             math_data.close()

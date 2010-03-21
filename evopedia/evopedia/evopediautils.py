@@ -220,6 +220,6 @@ def parse_coordinates_zoom(zoomstr):
 
         try:
             zoom = round(28.7253 - math.log(scale, 2))
-        except OverflowError:
+        except (OverflowError, ValueError):
             zoom = default
         return int(max(2, min(18, zoom)))
