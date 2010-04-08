@@ -82,6 +82,15 @@ class DatafileStorage(object):
         except:
             self.num_articles = None
 
+        try:
+            self.normalized_titles = parser.get('dump', 'normalized_titles')
+            try:
+                self.normalized_titles = bool(int(self.normalized_titles))
+            except ValueError:
+                self.normalized_titles = bool(self.normalized_titles)
+        except:
+            self.normalized_titles = True
+
         self.initialize_coords(parser)
 
         if self.math_index_file is not None:
@@ -119,12 +128,14 @@ class DatafileStorage(object):
                             data_files_schema,
                             math_data_file, math_index_file,
                             metadata_file,
-                            dump_date, dump_language, dump_orig_url):
+                            dump_date, dump_language, dump_orig_url,
+                            normalized_titles=True):
         self.titles_file = titles_file
         self.coordinates_files_schema = coordinates_files_schema
         self.data_files_schema = data_files_schema
         self.math_data_file = math_data_file
         self.math_index_file = math_index_file
+        self.normalized_titles = normalized_titles
         print("Converting image...")
 
         num_articles = self.convert_articles(image_dir, write=True)
@@ -139,6 +150,7 @@ class DatafileStorage(object):
         config.set('dump', 'orig_url', dump_orig_url)
         config.set('dump', 'version', '0.3')
         config.set('dump', 'num_articles', num_articles)
+        config.set('dump', 'normalized_titles', int(self.normalized_titles))
         config.add_section('coordinates')
         for (i, file) in enumerate(coord_files):
             config.set('coordinates', 'file_%02d' % (i + 1), file)
@@ -182,11 +194,14 @@ class DatafileStorage(object):
     def get_titles_with_prefix(self, prefix):
         """Generator that returns all titles with the specified prefix.
 
-        The generated items are pairs of title and position specifier. Note
-        that the prefix and the titles are only compared in their normalized
-        (i.e. with special symbols translated) form.
+        The generated items are pairs of title and position specifier.
+        Note that if "normalized_titles" is set to true, the prefix and the
+        titles are only compared in their normalized (i.e. with special symbols
+        translated) form.
         """
-        prefix = evopediautils.normalize(prefix)
+        nt = self.normalized_titles
+        if nt:
+            prefix = evopediautils.normalize(prefix)
 
         lo = 0
         hi = self.titles_file_size
@@ -203,7 +218,8 @@ class DatafileStorage(object):
                     hi = mid
                     continue
                 (title, articlepos) = self.titleentry_decode(line)
-                title = evopediautils.normalize(title)
+                if nt:
+                    title = evopediautils.normalize(title)
                 if title < prefix:
                     # position lo just before the next entry
                     lo = aftermid - 1
@@ -216,7 +232,10 @@ class DatafileStorage(object):
 
             for (title, articlepos) in self.titlestream_at_offset(lo,
                                             titlefile=f_titles):
-                title_n = evopediautils.normalize(title)
+                if nt:
+                    title_n = evopediautils.normalize(title)
+                else:
+                    title_n = title
                 if title_n.startswith(prefix):
                     yield (title, articlepos)
                 else:
@@ -684,9 +703,12 @@ class DatafileStorage(object):
         return num_articles
 
     def generate_index(self, write=True):
-        n = evopediautils.normalize # speed optimization
         print "Sorting titles and redirects..."
-        self.titles.sort(key=lambda x: n(x[0].decode('utf-8')))
+        if self.normalized_titles:
+            n = evopediautils.normalize # speed optimization
+            self.titles.sort(key=lambda x: n(x[0].decode('utf-8')))
+        else:
+            self.titles.sort(key=lambda x: x[0].decode('utf-8'))
 
         # format for titles:
         # [title, pos in index, article pos (or redirect data),
@@ -795,27 +817,32 @@ class DatafileStorage(object):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: %s\n"
-              "          --convert <dir> <date> <language> <orig url>\n"
-              "              converts an evopedia 2.0 article image\n"
-              "              mounted at <dir> to evopedia 3.0 format\n"
+              "          --convert <dir> <date> <language> <orig url> "
+                                                "[--nonorm]\n"
+              "              Converts an evopedia 2.0 article image\n"
+              "              mounted at <dir> to evopedia 3.0 format.\n"
+              "              If --nonorm is given, the titles are not "
+                                                        "normalized.\n"
               "          --searchgeo <minlat> <maxlat> <minlon> <maxlon>\n"
-              "              search for articles in geographical area\n"
+              "              Searches for articles in geographical area.\n"
               "          --math <hash>\n"
-              "              returns math image with hash <hash>\n"
+              "              Returns math image with hash <hash>.\n"
               "          --article <text>\n"
-              "              returns article with name <text>\n"
+              "              Returns article with name <text>.\n"
               "          <text>\n"
-              "              searches for <text>" % sys.argv[0])
+              "              Searches for <text>." % sys.argv[0])
     else:
         backend = DatafileStorage()
 
         if sys.argv[1] == '--convert':
+            nonorm = (len(sys.argv) > 6 and sys.argv[6] == '--nonorm')
             backend.storage_create(sys.argv[2],
                                 'titles.idx', 'coordinates_%02d.idx',
                                 'wikipedia_%02d.dat',
                                 'math.dat', 'math.idx',
                                 'metadata.txt',
-                                sys.argv[3], sys.argv[4], sys.argv[5])
+                                sys.argv[3], sys.argv[4], sys.argv[5],
+                                not nonorm)
         elif sys.argv[1] == '--article':
             backend.storage_init_read('./')
             print backend.get_article_by_name(sys.argv[2].decode('utf-8'))
