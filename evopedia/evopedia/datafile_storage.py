@@ -648,6 +648,7 @@ class DatafileStorage(object):
 
         titles = []
         images = []
+        hashes_seen = set()
 
         print("Compressing articles and math images...")
 
@@ -686,6 +687,8 @@ class DatafileStorage(object):
                 except ValueError:
                     print("Invalid math image name: %s" % fname)
                     continue
+                if hash in hashes_seen:
+                    continue
                 if write:
                     images += [hash + struct.pack('<II',
                                             math_data_pos, len(fdata))]
@@ -693,6 +696,7 @@ class DatafileStorage(object):
                     math_data_pos += len(fdata)
                 else:
                     images += [hash]
+                hashes_seen.add(hash)
             else:
                 num_articles += 1
                 if write:
