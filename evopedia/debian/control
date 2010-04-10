@@ -17,7 +17,7 @@ Description: Offline Wikipedia Viewer
  especially on embedded devices.
  .
  The geographical data in the articles is used to display a map of these
- articles. This map automagically uses your saved tiles from maep or tangogpw
+ articles. This map automagically uses your saved tiles from maep or tangogps
  if you are offline and Openstreetmap tiles if you are online. The images on
  Wikipedia are not contained in the dump but if you are connected to the
  internet, they are nevertheless shown.
