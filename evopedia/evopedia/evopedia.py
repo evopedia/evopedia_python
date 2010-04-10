@@ -53,7 +53,7 @@ storage_class = None
 tile_repository = None
 gps_handler = None
 
-EVOPEDIA_VERSION = 'Evopedia 0.3.0 RC 3'
+EVOPEDIA_VERSION = 'Evopedia 0.3.0'
 
 try:
     math.atanh(0)
@@ -182,7 +182,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     x, y, pathname2url('/wiki/' + name.encode('utf-8')))
             self.wfile.write(text)
             articlecount += 1
-            if articlecount >= 15:
+            if articlecount >= 30:
                 self.wfile.write('<error>Zoom in for more articles.' +
                                   '</error>')
                 break
