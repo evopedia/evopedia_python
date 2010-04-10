@@ -1,20 +1,3 @@
-function makeHTTPRequest(url, onReady) {
-    var request;
-    var onReadyFunc = onReady;
-    if (window.XMLHttpRequest) {
-        request = new XMLHttpRequest();
-    } else if (window.ActiveXObject) {
-        request = new ActiveXObject("Microsoft.XMLHTTP");
-    }
-    request.open('GET', url, true);
-    request.onreadystatechange = function() {
-        if (request.readyState != 4) return;
-        onReadyFunc(request, request.status == '200');
-    }
-    request.send(null);
-    return request;
-}
-
 function urlencode(params) {
     var parts = new Array();
     for (key in params) {
@@ -23,15 +6,34 @@ function urlencode(params) {
     return parts.join("&");
 }
 
-function getNodeContent(node) {
-    var value = '';
-    var child = node.firstChild;
-    while (child != null) {
-        value += child.nodeValue;
-        child = child.nextSibling;
+function getAbsolutePosition(obj) {
+    var x = 0;
+    var y = 0;
+    var parent = obj;
+    while (parent) {
+        y += parent.offsetTop;
+        x += parent.offsetLeft;
+        parent = parent.offsetParent;
     }
-    return value;
+    return [x, y];
 }
+
+function getInnerSize(theDocument) {
+    if (theDocument == null) theDocument = document;
+    var x, y;
+    if (theDocument.innerWidth) {
+        x = theDocument.innerWidth;
+        y = theDocument.innerHeight;
+    } else if (theDocument.documentElement && theDocument.documentElement.clientHeight) {
+        x = theDocument.documentElement.clientWidth;
+        y = theDocument.documentElement.clientHeight;
+    } else if (theDocument.body) {
+        x = theDocument.clientWidth;
+        y = theDocument.clientHeight;
+    }
+    return [x, y];
+}
+
 
 function ArticleSearch() {
     var lthis = this;
@@ -39,10 +41,23 @@ function ArticleSearch() {
     this.setInitialSearchValueFromURL();
     this.input.onkeyup = function(e) { return lthis.inputKeyUp(e || window.event); }
     this.input.focus();
+
+    this.searchForm = document.getElementById('searchForm');
+    this.searchForm.onsubmit = function() { lthis.doSearch(); return false; };
     this.searchList = document.getElementById('searchList');
+    this.fullSearch = document.getElementById('full_search');
+    this.caseSensitive = document.getElementById('case_sensitive');
+    this.searchInfo = document.getElementById('searchInfo');
+
+    this.searchList.onload = function() { lthis.searchInfo.style.display = 'none'; };
+    this.fullSearch.onchange = function() { lthis.caseSensitive.disabled = !lthis.fullSearch.checked; lthis.doSearch(); };
+    this.caseSensitive.disabled = !lthis.fullSearch.checked;
+    this.caseSensitive.onchange = function() { lthis.doSearch(); }
+    window.onresize = function() { lthis.browserResized(); };
 
     this.searchTimeout = null;
     this.doSearch();
+    window.setTimeout(function() { lthis.browserResized(); }, 10);
 }
 
 ArticleSearch.prototype = {
@@ -51,8 +66,6 @@ ArticleSearch.prototype = {
             window.clearTimeout(this.searchTimeout);
             this.searchTimeout = null;
         }
-
-        //if (this.input.value.length < 3) return;
 
         var lthis = this;
         this.searchTimeout = window.setTimeout(function() { lthis.doSearch();}, 300);
@@ -71,47 +84,16 @@ ArticleSearch.prototype = {
 
     doSearch: function() {
         this.searchTimeout = null;
-        var lthis = this;
-        makeHTTPRequest('/search?' + urlencode({q: this.input.value}),
-                function(request, success) { lthis.showSearchResults(request, success); });
-
-        this.searchList.innerHTML = '';
-        this.searchList.appendChild(document.createTextNode('searching...'));
+        this.searchInfo.style.display = 'block';
+        this.searchList.src = '/search?' +
+                urlencode({q: this.input.value,
+                        full_search: this.fullSearch.checked ? '1' : '0',
+                        case_sensitive: this.caseSensitive.checked ? '1' : '0'});
     },
 
-    showSearchResults: function(request, success) {
-        this.searchList.innerHTML = '';
-
-        if (!success) {
-            this.searchList.appendChild(document.createTextNode('Error contacting server.'));
-            return;
-        }
-
-        var errors = request.responseXML.getElementsByTagName('error');
-        if (errors.length > 0) {
-            this.searchList.appendChild(document.createTextNode('Error: ' + getNodeContent(errors[0])));
-        } else {
-            var listobj = request.responseXML.getElementsByTagName('list')[0];
-            if (listobj == null) {
-                this.searchList.appendChild(document.createTextNode('Invalid server response.'));
-                return;
-            }
-            var list = request.responseXML.getElementsByTagName('article');
-            for (var i = 0; i < list.length; i ++) {
-                var name = list[i].getAttribute('name');
-                var url = list[i].getAttribute('url');
-                var link = document.createElement('a');
-                link.className = "evopedianav";
-                link.href = url;
-                link.appendChild(document.createTextNode(name));
-                this.searchList.appendChild(link);
-                this.searchList.appendChild(document.createElement('br'));
-            }
-            if (list.length == 0) {
-                this.searchList.appendChild(document.createTextNode('no results'));
-            } else if (listobj.getAttribute('complete') != '1') {
-                this.searchList.appendChild(document.createTextNode('...'));
-            }
-        }
+    browserResized: function() {
+        var size = getInnerSize();
+        var searchListPos = getAbsolutePosition(this.searchList);
+        this.searchList.style.height = (size[1] - searchListPos[1]) + 'px';
     }
 }

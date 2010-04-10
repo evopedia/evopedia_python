@@ -18,6 +18,10 @@
     color: #002bb8;
 }
 
+#searchList {
+    border: 0px;
+}
+
 .geo {
     display:none;
 }

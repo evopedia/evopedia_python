@@ -28,6 +28,7 @@ import itertools
 import bz2
 import random
 import urllib
+import re
 import ConfigParser
 
 import evopediautils
@@ -241,6 +242,30 @@ class DatafileStorage(object):
                 else:
                     return
 
+    def get_titles_with_substring(self, substring, case_sensitive=False):
+        """Generator that returns all titles containing the specified substring
+        (it can be a regular expression).
+
+        The generated items are pairs of title and position specifier.
+        """
+
+        substring = substring.replace(' ', '_').encode('utf-8')
+
+        flags = re.MULTILINE
+        if not case_sensitive:
+            flags |= re.IGNORECASE
+        search_regex = re.compile('^[^\n]*%s[^\n]*$' % substring, flags)
+
+        with open(self.titles_file, 'rb') as f_titles:
+            olddata = ''
+            while 1:
+                data = f_titles.read(1024 * 1024)
+                if not data: break
+                data = olddata + data
+                for match in search_regex.finditer(data):
+                    yield self.titleentry_decode(match.group(0) + '\n')
+                olddata = data[data.rfind('\n'):]
+
     def get_random_article(self):
         """Returns the title of a random article."""
         size = self.titles_file_size
@@ -395,6 +420,7 @@ class DatafileStorage(object):
         articlepos specifies a redirection."""
         if articlepos[0] == 0xff: # redirect
             if articlepos[1] == 0xffffffff:
+                print "Invalid redirect"
                 return None
             offset = articlepos[1]
             (title, articlepos) = self.title_at_offset(offset)

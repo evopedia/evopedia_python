@@ -14,11 +14,13 @@ EVOPEDIA_INFO
 <a class="evopedianav" href="/random"><img src="/static/random.png"></a>
 <a class="evopedianav" href="/exit"><img src="/static/exit.png"></a>
 </div>
-<form method="get" action="#search">
+<form method="get" action="#search" id="searchForm">
 <a name="search"></a>Live title search: <input id="searchInput"/>
+<input type="checkbox" id="full_search" value="">substring&nbsp;search
+<input type="checkbox" id="case_sensitive" checked>case&nbsp;sensitive
 </form>
-<div id="searchList">
-</div>
+<div id="searchInfo" style="display: none;">searching...</div>
+<iframe id="searchList" src="/search" width="100%"></iframe>
 </div>
 <span id="jswarning">Please activate Javascript!</span>
 <script type="text/javascript">document.getElementById('jswarning').style.display = 'none'; var search = new ArticleSearch();</script>

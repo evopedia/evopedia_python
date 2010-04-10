@@ -25,6 +25,7 @@ from __future__ import division
 import sys
 import cgi
 import shutil
+import socket
 import SocketServer
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urllib import unquote_plus, unquote, quote, pathname2url
@@ -114,29 +115,46 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
-    def output_search_result(self, query, limit):
-        self.write_header('text/xml')
-        self.wfile.write("<?xml version='1.0' encoding='UTF-8' ?>\n")
+    def output_search_result(self, query, limit,
+                                full_search=False, case_sensitive=False):
+        self.write_header()
+        with open(os.path.join(static_path, 'header_search.html')) as head:
+            shutil.copyfileobj(head, self.wfile)
+        self.wfile.flush()
+        found_something = True
         try:
-            self.wfile.write(self.get_search_result_text(query, limit)
-                             .encode('utf-8'))
+            found_something = self.output_search_result_text(query, limit,
+                                    full_search, case_sensitive)
         except Exception, e:
-            self.wfile.write(('<error>%s</error>' %
+            self.wfile.write(('<p>Error: %s</p>' %
                               saxutils.escape(repr(e))).encode('utf-8'))
+        if not found_something:
+            self.wfile.write('nothing found')
+        self.wfile.write('</body></html>')
 
-    def get_search_result_text(self, query, limit):
+    def output_search_result_text(self, query, limit,
+                                    full_search=False, case_sensitive=False):
         global storage
 
-        text = ''
-        titles = storage.get_titles_with_prefix(query)
+        found_something = False
+
+        if full_search:
+            titles = storage.get_titles_with_substring(query, case_sensitive)
+        else:
+            titles = storage.get_titles_with_prefix(query)
         for (i, title) in enumerate(titles):
+            found_something = True
             if i >= limit:
-                return '<list complete="0">' + text + '</list>'
-            else:
-                title = saxutils.escape(title[0])
-                name = title.replace('_', ' ')
-                text += '<article name="%s" url="/wiki/%s" />' % (name, title)
-        return '<list complete="1">' + text + '</list>'
+                # XXX link to next set of search results
+                self.wfile.write('<div style="text-align: right;">(incomplete)</div>')
+                return found_something
+            title = saxutils.escape(title[0])
+            name = title.replace('_', ' ')
+            link = '<a class="evopedianav" target="_top" ' + \
+                    'href="/wiki/%s">%s</a><br />' % \
+                        (quote(title.encode('utf-8')), saxutils.escape(name))
+            self.wfile.write(link.encode('utf-8'))
+        return found_something
 
     def output_map(self, coords, zoom):
         global static_path
@@ -418,7 +436,18 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 query = self.decode(dict['q'][0])
             except (UnicodeDecodeError, TypeError, KeyError):
                 query = ''
-            self.output_search_result(query, 50)
+            try:
+                full_search = int(dict['full_search'][0])
+            except (ValueError, KeyError):
+                full_search = 0
+            try:
+                case_sensitive = int(dict['case_sensitive'][0])
+            except (ValueError, KeyError):
+                case_sensitive = 0
+            try:
+                self.output_search_result(query, 200, full_search, case_sensitive)
+            except socket.error:
+                print "Client closed connection."
             return
         elif parts[0] == 'map':
             try:
@@ -909,8 +938,6 @@ def start_server():
         print("Error opening storage.")
         import traceback
         traceback.print_exc()
-
-    import socket
 
     try:
         server = ThreadingHTTPServer((address, port), EvopediaHandler)
