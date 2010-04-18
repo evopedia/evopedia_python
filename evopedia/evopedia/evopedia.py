@@ -462,9 +462,10 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         elif parts[0] == 'static':
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
                     'magnify-clip.png', 'mapclient.js', 'zoomin.png',
-                    'zoomout.png', 'search.png', 'wikipedia.png', 'close.png',
-                    'random.png', 'map.png', 'maparticle.png', 'home.png',
-                    'crosshairs.png', 'exit.png']):
+                    'zoomout.png', 'search.png', 'settings.png',
+                    'wikipedia.png', 'close.png', 'random.png', 'map.png',
+                    'maparticle.png', 'home.png', 'crosshairs.png',
+                    'exit.png']):
                 if parts[1].endswith('.png'):
                     self.write_header('image/png', expires=True)
                 elif parts[1].endswith('.css'):
