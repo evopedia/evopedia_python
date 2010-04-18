@@ -36,7 +36,7 @@ import re
 import operator
 import time
 import threading
-from random import randint, choice
+from random import randint
 import urllib2
 import os
 import ConfigParser
@@ -49,12 +49,12 @@ __all__ = ['EvopediaHandler', 'GPSHandler', 'GPSHandlerGypsy',
 static_path = os.path.join(sys.prefix, 'share/evopedia/static/')
 configfile = '~/.evopediarc'
 config = None
-storage = None
+storages = {}
 storage_class = None
 tile_repository = None
 gps_handler = None
 
-EVOPEDIA_VERSION = 'Evopedia 0.3.0'
+EVOPEDIA_VERSION = 'Evopedia 0.3.2'
 
 try:
     math.atanh(0)
@@ -67,8 +67,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
     map_width = 400
     map_height = 380
 
-    def output_wiki_page(self, url):
-        global storage
+    def output_wiki_page(self, storage, url):
         global static_path
 
         text = storage.get_article_by_name(url)
@@ -115,7 +114,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
-    def output_search_result(self, query, limit,
+    def output_search_result(self, storage, query, limit,
                                 full_search=False, case_sensitive=False):
         self.write_header()
         with open(os.path.join(static_path, 'header_search.html')) as head:
@@ -123,7 +122,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
         found_something = True
         try:
-            found_something = self.output_search_result_text(query, limit,
+            found_something = self.output_search_result_text(storage, query, limit,
                                     full_search, case_sensitive)
         except Exception, e:
             self.wfile.write(('<p>Error: %s</p>' %
@@ -132,11 +131,10 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             self.wfile.write('nothing found')
         self.wfile.write('</body></html>')
 
-    def output_search_result_text(self, query, limit,
+    def output_search_result_text(self, storage, query, limit,
                                     full_search=False, case_sensitive=False):
-        global storage
-
         found_something = False
+        lang = storage.get_language()
 
         if full_search:
             titles = storage.get_titles_with_substring(query, case_sensitive)
@@ -151,8 +149,10 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             title = saxutils.escape(title[0])
             name = title.replace('_', ' ')
             link = '<a class="evopedianav" target="_top" ' + \
-                    'href="/wiki/%s">%s</a><br />' % \
-                        (quote(title.encode('utf-8')), saxutils.escape(name))
+                    'href="/wiki/%s/%s">%s</a><br />' % \
+                        (quote(lang),
+                         quote(title.encode('utf-8')),
+                         saxutils.escape(name))
             self.wfile.write(link.encode('utf-8'))
         return found_something
 
@@ -181,8 +181,6 @@ class EvopediaHandler(BaseHTTPRequestHandler):
             shutil.copyfileobj(foot, self.wfile)
 
     def output_geo_articles(self, zoom, minx, miny, maxx, maxy):
-        global storage
-
         self.write_header('text/xml')
         self.wfile.write("<?xml version='1.0' encoding='UTF-8' ?>\n")
 
@@ -191,20 +189,27 @@ class EvopediaHandler(BaseHTTPRequestHandler):
 
         self.wfile.write('<articles>')
 
-        articlecount = 0
-        for (name, lat, lon) in storage.titles_in_coords(mincoords,
-                                                             maxcoords):
-            (x, y) = self.coords2pixel(zoom, (lat, lon))
-            text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
-                    (saxutils.escape(name.replace('_', ' ').encode('utf-8')),
-                    x, y, pathname2url('/wiki/' + name.encode('utf-8')))
-            self.wfile.write(text)
-            articlecount += 1
-            if articlecount >= 30:
-                self.wfile.write('<error>Zoom in for more articles.' +
-                                  '</error>')
-                break
+        global storages
 
+        more_articles = False
+        for storage in storages.values():
+            lang = storage.get_language()
+            articlecount = 0
+            for (name, lat, lon) in storage.titles_in_coords(mincoords,
+                                                                 maxcoords):
+                (x, y) = self.coords2pixel(zoom, (lat, lon))
+                text = '<article name="%s" x="%f" y="%f" href="%s"/>' % \
+                        (saxutils.escape(name.replace('_', ' ').encode('utf-8')),
+                        x, y, pathname2url(('/wiki/%s/%s' %
+                                 (lang, name)).encode('utf-8')))
+                self.wfile.write(text)
+                articlecount += 1
+                if articlecount >= 30:
+                    more_articles = True
+                    break
+        if more_articles:
+            self.wfile.write('<error>Zoom in for more articles.' +
+                                      '</error>')
         self.wfile.write('</articles>')
 
     def coords2pixel(self, zoom, coords):
@@ -236,9 +241,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         global storage_class
         global static_path
 
-        path = storage.get_datadir()
-        if not os.path.isdir(path):
-            path = os.path.expanduser("~/")
+        path = os.path.expanduser("~/")
         try:
             path = self.decode(dict['path'][0])
         except (UnicodeDecodeError, TypeError, KeyError):
@@ -248,14 +251,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'header.html')) as head:
             shutil.copyfileobj(head, self.wfile)
         self.wfile.write('</div>')
-        if not storage.is_readable():
-            self.wfile.write('<h2>Please download a Wikipedia dump from ' +
-                        '<a href="http://wiki.maemo.org/Evopedia">' +
-                        'http://wiki.maemo.org/Evopedia</a>, ' +
-                        'extract it to a folder on your device and ' +
-                        'select this folder here.</h2>')
-        else:
-            self.wfile.write('<h2>Please choose data directory</h2>')
+        self.wfile.write('<h2>Please choose data directory</h2>')
 
         # make every part of the current path clickable
         path_parts = []
@@ -288,8 +284,8 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         else:
             num_articles = ''
         if date is not None:
-            self.wfile.write(('<a href=/set_data?path=%s>' +
-                    'Use this Wikipedia dump from ' +
+            self.wfile.write(('<a href=/add_data?path=%s>' +
+                    'Add this Wikipedia dump from ' +
                     '%s, language: %s%s</a>') %
                     (quote(path.encode('utf-8')), date,
                      language, num_articles))
@@ -319,6 +315,49 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         with open(os.path.join(static_path, 'footer.html')) as foot:
             shutil.copyfileobj(foot, self.wfile)
 
+    def output_settings(self):
+        with open(os.path.join(static_path, 'header.html')) as head:
+            shutil.copyfileobj(head, self.wfile)
+        self.wfile.write('</div>')
+
+        self.wfile.write('<h2>Wikipedia dumps installed:</h2>')
+        if not storages:
+            self.wfile.write('<b>Please download a Wikipedia dump from ' +
+                        '<a href="http://wiki.maemo.org/Evopedia">' +
+                        'http://wiki.maemo.org/Evopedia</a>, ' +
+                        'extract it to a folder on your device and ' +
+                        'add it here.</b>')
+        self.wfile.write('<table class="prettytable"><tr><th>Language</th><th>Date</th>'
+                         '<th>Articles</th><th>Remove</th></tr>')
+        for storage in storages.values():
+            num_art = storage.get_num_articles()
+            if num_art is None:
+                num_art = ''
+            self.wfile.write((('<tr><td>%s</td><td>%s</td><td>%s</td>'
+                    '<td><a href="/remove_data?language=%s">remove</a></td></tr>')
+                         % (saxutils.escape(storage.get_language()),
+                            saxutils.escape(storage.get_date()),
+                            num_art,
+                            saxutils.escape(storage.get_language())
+                            )).encode('utf-8'))
+        self.wfile.write('<tr><td colspan="4">'
+                        '<a href="/choose_data">add</a></td></tr>')
+        self.wfile.write('</table>')
+
+        self.wfile.write('<h2>Evopedia Version</h2>'
+                'You are using ' + EVOPEDIA_VERSION + '.')
+
+        self.wfile.write('<h2>Copyright Information</h2>'
+                'This program shows articles from '
+                '<a href="http://wikipedia.org">Wikipedia</a>, '
+                'available under the '
+                '<a href="http://creativecommons.org/licenses/by-sa/3.0/">'
+                'Creative Commons Attribution/Share-Alike License</a>. '
+                'Further information can be found via the links '
+                'to the online versions of the respective '
+                'articles.')
+
+
     def write_header(self, content_type='text/html', charset='UTF-8',
                         expires=False):
         self.send_response(200)
@@ -333,6 +372,20 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 time.strftime("%a, %d %b %Y %H:%M:%S +0000",
                     time.gmtime(exp_time)))
         self.end_headers()
+
+    def save_storages_to_configfile(self):
+        global config
+        global configfile
+        global storages
+        for section in config.sections():
+            if section.startswith('dump_'):
+                config.remove_section(section)
+        for storage in storages.values():
+            lang = storage.get_language()
+            config.add_section('dump_' + lang)
+            config.set('dump_' + lang, 'data_directory', storage.get_datadir())
+        with open(os.path.expanduser(configfile), 'wb') as f:
+            config.write(f)
 
     def do_exit(self):
         global static_path
@@ -372,7 +425,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         return s
 
     def do_GET(self):
-        global storage
+        global storages
         global static_path
 
         dict = None
@@ -389,28 +442,22 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         parts = [self.decode(unquote(i)) for i in self.path.split('/') if i]
 
         if len(parts) == 0:
-            if not storage.is_readable():
+            if not storages:
                 self.send_response(302)
-                self.send_header('Location', '/choose_data')
+                self.send_header('Location', '/settings')
                 return
             self.write_header()
             with open(os.path.join(static_path, 'search.html')) as search:
                 data = search.read()
-                num_articles = storage.get_num_articles()
-                if num_articles is not None:
-                    num_articles = ', %s articles' % num_articles
-                else:
-                    num_articles = ''
-                data = data.replace("EVOPEDIA_INFO",
-                            ('<a href="%s">Wikipedia (%s)</a>, ' +
-                                '<a href="/choose_data">%s%s</a> '
-                                '<small>via ' + EVOPEDIA_VERSION +
-                                            '</small>') %
-                            (storage.get_orig_url(''),
-                                 storage.get_language(),
-                                 storage.get_date(),
-                                 num_articles))
-                self.wfile.write(data)
+            language_chooser = '<select id="language_chooser">'
+            for storage in storages.values():
+                lang = storage.get_language()
+                language_chooser += '<option value="%s">%s</option>' % (
+                               lang, lang)
+            language_chooser += '</select>'
+            data = data.replace('EVOPEDIA_LANGUAGE_CHOOSER',
+                               language_chooser)
+            self.wfile.write(data)
             return
         elif parts[0] == 'static':
             if len(parts) == 2 and parts[1] in set(['search.js', 'main.css',
@@ -430,24 +477,31 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                     shutil.copyfileobj(fobj, self.wfile)
                 return
         elif parts[0] == 'search':
-            if not storage.is_readable():
+            if not storages:
                 return
+            try:
+                storage = storages[dict['lang'][0]]
+            except (KeyError, TypeError):
+                storage = storages.values()[0]
             try:
                 query = self.decode(dict['q'][0])
             except (UnicodeDecodeError, TypeError, KeyError):
                 query = ''
             try:
                 full_search = int(dict['full_search'][0])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 full_search = 0
             try:
                 case_sensitive = int(dict['case_sensitive'][0])
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 case_sensitive = 0
             try:
-                self.output_search_result(query, 200, full_search, case_sensitive)
+                self.output_search_result(storage, query, 200, full_search, case_sensitive)
             except socket.error:
                 print "Client closed connection."
+            return
+        elif parts[0] == "settings":
+            self.output_settings()
             return
         elif parts[0] == 'map':
             try:
@@ -475,7 +529,7 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 traceback.print_exc()
             return
         elif parts[0] == 'geo':
-            if not storage.is_readable():
+            if not storages:
                 return
             try:
                 minx = int(dict['minx'][0])
@@ -514,15 +568,29 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                                 'in configuration file</error>')
             return
         elif parts[0] == 'random':
-            if not storage.is_readable():
+            if not storages:
                 self.send_response(302)
-                self.send_header('Location', '/choose_data')
+                self.send_header('Location', '/settings')
                 return
+            try:
+                storage = storages[parts[1]]
+            except (KeyError, IndexError):
+                # choose one randomly
+                num_articles = [int(s.get_num_articles()) for s in storages.values()]
+                r = randint(0, sum(num_articles) - 1)
+                for s in storages.values():
+                    r -= int(s.get_num_articles())
+                    if r < 0:
+                        storage = s
+                        break
+
             title = storage.get_random_article()
             if title is not None:
                 self.send_response(302)
-                self.send_header('Location', pathname2url('/wiki/' +
-                                                title.encode('utf-8')))
+                self.send_header('Location',
+                        pathname2url('/wiki/%s/%s' % (
+                            storage.get_language(),
+                            title.encode('utf-8'))))
                 self.end_headers()
             else:
                 self.output_error_msg_page("Error finding random page...")
@@ -530,14 +598,13 @@ class EvopediaHandler(BaseHTTPRequestHandler):
         elif parts[0] == 'choose_data':
             self.output_data_selector(parts, dict)
             return
-        elif parts[0] == 'set_data':
+        elif parts[0] == 'add_data':
             data_dir = dict['path'][0]
-            print "Changing datafile storage to %s." % data_dir
+            print "Adding storage at %s." % data_dir
             global storage_class
             from datafile_storage import DatafileStorage, \
                                 DatafileInitializationError
-            storage_class = DatafileStorage
-            storage = DatafileStorage()
+            storage = storage_class()
             try:
                 storage.storage_init_read(data_dir)
             except Exception, e:
@@ -546,42 +613,70 @@ class EvopediaHandler(BaseHTTPRequestHandler):
                 return
 
             if storage.is_readable():
-                global config
-                global configfile
-                config.set('evopedia', 'data_directory', data_dir)
-                with open(os.path.expanduser(configfile), 'wb') as f:
-                    config.write(f)
+                storages[storage.get_language()] = storage
+                self.save_storages_to_configfile()
             self.send_response(302)
-            self.send_header('Location', '/')
+            self.send_header('Location', '/settings')
             self.end_headers()
             return
+        elif parts[0] == 'remove_data':
+            language = dict['language'][0]
+            print "Removing storage for language %s." % language
+            del storages[language]
+            self.save_storages_to_configfile()
+            self.send_response(302)
+            self.send_header('Location', '/settings')
+            self.end_headers()
         elif parts[0] == 'math' or (
                         parts[0] == 'wiki' and parts[1] == 'math'):
             # second case is workaround for bug in dumps
-            if not storage.is_readable():
+            if not storages:
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
                 return
 
-            self.write_header('image/png', charset=None, expires=True)
-            data = storage.get_math_image(parts[-1][:32])
-            if data is not None:
+            hex_hash = parts[-1][:32]
+            data = None
+            for storage in storages.values():
+                data = storage.get_math_image(hex_hash)
+                if data is not None:
+                    break
+            if data is None:
+                self.send_response(404)
+            else:
+                self.write_header('image/png', charset=None, expires=True)
                 self.wfile.write(data)
             return
         elif parts[0] in ('wiki', 'articles'):
-            if not storage.is_readable():
+            if not storages:
                 self.send_response(302)
                 self.send_header('Location', '/choose_data')
                 return
 
-            url = '/'.join(parts[1:])
+            language = parts[1]
+            if language not in storages:
+                # see if only the language was omitted
+                for storage in storages.values():
+                    url = '/'.join(parts[1:])
+                    text = storage.get_article_by_name(url)
+                    if text is not None:
+                        self.send_response(302)
+                        self.send_header('Location',
+                                pathname2url(('/wiki/%s/%s' %
+                                 (storage.get_language(),
+                                     url)).encode('utf-8')))
+                        return
+
+            storage = storages[language]
+
+            url = '/'.join(parts[2:])
 
             if parts[-1].startswith("File:"):
                 self.send_response(302)
                 self.send_header('Location', storage.get_orig_url(url))
                 return
 
-            self.output_wiki_page(url)
+            self.output_wiki_page(storage, url)
             return
         elif parts[0] == 'exit':
             self.do_exit()
@@ -906,11 +1001,47 @@ def start_server():
                 config.write(f)
         except:
             print("Unable to write config file.")
-    data_dir = config.get('evopedia', 'data_directory')
 
-    data_dir = os.path.expanduser(data_dir)
-    if not os.path.exists(data_dir):
-        print("Data directory %s not found." % data_dir)
+    global storages
+    global storage_class
+    storages = {}
+    from datafile_storage import DatafileStorage, DatafileInitializationError
+    storage_class = DatafileStorage
+    print "Using datafile storage."
+
+    # check if config file has old format
+    if config.has_option('evopedia', 'data_directory'):
+        data_dir = config.get('evopedia', 'data_directory')
+        config.remove_option('evopedia', 'data_directory')
+        config.add_section('dump_UNKNOWN')
+        config.set('dump_UNKNOWN', 'data_directory', data_dir)
+        try:
+            with open(configfile_expanded, 'wb') as f:
+                config.write(f)
+        except:
+            print("Unable to write config file.")
+
+    for section in config.sections():
+        if not section.startswith("dump_"):
+            continue
+        data_dir = config.get(section, 'data_directory')
+        data_dir = os.path.expanduser(data_dir)
+        if not os.path.exists(data_dir):
+            print("Data directory %s not found." % data_dir)
+
+        storage = storage_class()
+        try:
+            storage.storage_init_read(data_dir)
+        except DatafileInitializationError:
+            print("Error opening storage: %s" % data_dir)
+            import traceback
+            traceback.print_exc()
+        except Exception:
+            print("Error opening storage at %s" % data_dir)
+            import traceback
+            traceback.print_exc()
+
+        storages[storage.get_language()] = storage
 
     global tile_repository
     tile_repository = TileRepo.parse_tilerepos(repostring)
@@ -921,23 +1052,6 @@ def start_server():
     if use_gps == 'yes' or use_gps == '1':
         print("Enabling GPS...")
         gps_handler = GPSHandler.handler_factory()
-
-    global storage
-    global storage_class
-    print "Using datafile storage."
-    from datafile_storage import DatafileStorage, DatafileInitializationError
-    storage_class = DatafileStorage
-    storage = DatafileStorage()
-    try:
-        storage.storage_init_read(data_dir)
-    except DatafileInitializationError:
-        print("Error opening storage.")
-        import traceback
-        traceback.print_exc()
-    except Exception:
-        print("Error opening storage.")
-        import traceback
-        traceback.print_exc()
 
     try:
         server = ThreadingHTTPServer((address, port), EvopediaHandler)
