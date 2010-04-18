@@ -42,6 +42,8 @@ function ArticleSearch() {
     this.input.onkeyup = function(e) { return lthis.inputKeyUp(e || window.event); }
     this.input.focus();
 
+    this.languageChooser = document.getElementById('language_chooser')
+    this.languageChooser.onchange = function() { lthis.doSearch(); };
     this.searchForm = document.getElementById('searchForm');
     this.searchForm.onsubmit = function() { lthis.doSearch(); return false; };
     this.searchList = document.getElementById('searchList');
@@ -87,6 +89,7 @@ ArticleSearch.prototype = {
         this.searchInfo.style.display = 'block';
         this.searchList.src = '/search?' +
                 urlencode({q: this.input.value,
+                        lang: this.languageChooser.value,
                         full_search: this.fullSearch.checked ? '1' : '0',
                         case_sensitive: this.caseSensitive.checked ? '1' : '0'});
     },
