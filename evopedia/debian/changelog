@@ -1,3 +1,15 @@
+evopedia (0.3.1) UNRELEASED; urgency=low
+
+  * Title substring and regular expression search.
+
+ -- Christian Reitwiessner <christian@exinto.de>  Sat, 10 Apr 2010 15:47:37 +0100
+
+evopedia (0.3.0) UNRELEASED; urgency=low
+
+  * Support for languages with non-latin alphabet
+
+ -- Christian Reitwiessner <christian@exinto.de>  Thu, 8 Apr 2010 19:47:37 +0100
+
 evopedia (0.3~rc3+1) UNRELEASED; urgency=low
 
   * Fixed version numbering
