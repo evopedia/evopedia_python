@@ -4,12 +4,7 @@ Index: evopedia/evopedia.sh
 +++ evopedia/evopedia.sh	2010-02-27 15:39:08.000000000 +0100
 @@ -3,4 +3,9 @@
  
- /usr/bin/evopedia_starter.py &
- 
+-/usr/bin/evopedia_starter.py &
+-
 -/usr/bin/midori http://127.0.0.1:8080
-+dbus-send --system --type=method_call \
-+        --dest="com.nokia.osso_browser" \
-+        /com/nokia/osso_browser/request \
-+        com.nokia.osso_browser.open_new_window \
-+        string:"http://127.0.0.1:8080"
-+
++/usr/bin/evopedia_starter.py --maemo-browser &

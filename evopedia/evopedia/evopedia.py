@@ -966,8 +966,24 @@ def get_default_repositories():
     else:
         return ''
 
+def start_maemo_browser(url):
+    try:
+        import dbus
+    except ImportError:
+        return None
+    
+    try:
+        bus = dbus.SystemBus()
+        obj = bus.get_object("com.nokia.osso_browser",
+                            '/com/nokia/osso_browser/request')
+        obj.open_new_window(url, dbus_interface='com.nokia.osso_browser')
+    except dbus.exceptions.DBusException, e:
+        print e
+        return None
+    return True
 
-def start_server():
+
+def start_server(maemo_browser=False):
     import sys
 
     global config
@@ -1059,7 +1075,14 @@ def start_server():
     except socket.error:
         print 'Socket error. Perhaps there is already some server ' + \
                 'running. Exiting.'
+        server = None
+
+    if maemo_browser:
+        start_maemo_browser('http://127.0.0.1:8080')
+
+    if server is None:
         sys.exit(1)
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
